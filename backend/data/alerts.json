@@ -71,6 +71,132 @@
       "severity": "high",
       "createdAt": "2026-08-04T09:35:00Z",
       "resolvedAt": null
+    },
+    {
+      "id": "alert-1785837179809-disk",
+      "assetId": "PLT-LAP-1785837179792",
+      "type": "low-disk-space",
+      "message": "Low disk space detected",
+      "severity": "high",
+      "createdAt": "2026-08-04T09:35:00Z",
+      "resolvedAt": null
+    },
+    {
+      "id": "alert-1785837179809-backup",
+      "assetId": "PLT-LAP-1785837179792",
+      "type": "backup-failed",
+      "message": "Backup failed",
+      "severity": "high",
+      "createdAt": "2026-08-04T09:35:00Z",
+      "resolvedAt": null
+    },
+    {
+      "id": "alert-1785837246065-disk",
+      "assetId": "PLT-LAP-1785837246048",
+      "type": "low-disk-space",
+      "message": "Low disk space detected",
+      "severity": "high",
+      "createdAt": "2026-08-04T09:35:00Z",
+      "resolvedAt": null
+    },
+    {
+      "id": "alert-1785837246065-backup",
+      "assetId": "PLT-LAP-1785837246048",
+      "type": "backup-failed",
+      "message": "Backup failed",
+      "severity": "high",
+      "createdAt": "2026-08-04T09:35:00Z",
+      "resolvedAt": null
+    },
+    {
+      "id": "alert-1785837676944-disk",
+      "assetId": "PLT-LAP-1785837676927",
+      "type": "low-disk-space",
+      "message": "Low disk space detected",
+      "severity": "high",
+      "createdAt": "2026-08-04T09:35:00Z",
+      "resolvedAt": null
+    },
+    {
+      "id": "alert-1785837676944-backup",
+      "assetId": "PLT-LAP-1785837676927",
+      "type": "backup-failed",
+      "message": "Backup failed",
+      "severity": "high",
+      "createdAt": "2026-08-04T09:35:00Z",
+      "resolvedAt": null
+    },
+    {
+      "id": "alert-1785837762613-disk",
+      "assetId": "PLT-LAP-1785837762596",
+      "type": "low-disk-space",
+      "message": "Low disk space detected",
+      "severity": "high",
+      "createdAt": "2026-08-04T09:35:00Z",
+      "resolvedAt": null
+    },
+    {
+      "id": "alert-1785837762613-backup",
+      "assetId": "PLT-LAP-1785837762596",
+      "type": "backup-failed",
+      "message": "Backup failed",
+      "severity": "high",
+      "createdAt": "2026-08-04T09:35:00Z",
+      "resolvedAt": null
+    },
+    {
+      "id": "alert-1785838131783-disk",
+      "assetId": "PLT-LAP-1785838131766",
+      "type": "low-disk-space",
+      "message": "Low disk space detected",
+      "severity": "high",
+      "createdAt": "2026-08-04T09:35:00Z",
+      "resolvedAt": null
+    },
+    {
+      "id": "alert-1785838131783-backup",
+      "assetId": "PLT-LAP-1785838131766",
+      "type": "backup-failed",
+      "message": "Backup failed",
+      "severity": "high",
+      "createdAt": "2026-08-04T09:35:00Z",
+      "resolvedAt": null
+    },
+    {
+      "id": "alert-1785839701909-disk",
+      "assetId": "PLT-LAP-1785839701893",
+      "type": "low-disk-space",
+      "message": "Low disk space detected",
+      "severity": "high",
+      "createdAt": "2026-08-04T09:35:00Z",
+      "resolvedAt": null
+    },
+    {
+      "id": "alert-1785839701910-backup",
+      "assetId": "PLT-LAP-1785839701893",
+      "type": "backup-failed",
+      "message": "Backup failed",
+      "severity": "high",
+      "createdAt": "2026-08-04T09:35:00Z",
+      "resolvedAt": null
+    },
+    {
+      "id": "alert-1785840878941-disk",
+      "assetId": "PLT-LAP-1785840878925",
+      "type": "low-disk-space",
+      "message": "Low disk space detected",
+      "severity": "high",
+      "createdAt": "2026-08-04T09:35:00Z",
+      "resolvedAt": null
+    },
+    {
+      "id": "alert-1785840878941-backup",
+      "assetId": "PLT-LAP-1785840878925",
+      "type": "backup-failed",
+      "message": "Backup failed",
+      "severity": "high",
+      "createdAt": "2026-08-04T09:35:00Z",
+      "resolvedAt": null
     }
   ]
 }
