@@ -110,6 +110,38 @@ button:disabled {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
+  gap: 12px;
+}
+
+.section-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.secondary-button {
+  background: #16314e;
+  color: #dfefff;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 8, 16, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 1000;
+}
+
+.modal-card {
+  width: min(100%, 480px);
+  background: #081423;
+  border: 1px solid rgba(115, 168, 255, 0.25);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
 }
 
 .list {
@@ -127,6 +159,28 @@ button:disabled {
   gap: 12px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   padding-top: 10px;
+}
+
+.stack-form {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.stack-form input,
+.stack-form select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #27415f;
+  background: #0d1c2f;
+  color: #f7fbff;
+}
+
+.incident-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .list li:first-child {

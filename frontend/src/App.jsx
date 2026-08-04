@@ -12,6 +12,12 @@ function App() {
   const [error, setError] = useState('');
   const [email, setEmail] = useState('admin@example.com');
   const [password, setPassword] = useState('Admin123!');
+  const [assetForm, setAssetForm] = useState({ assetId: '', serialNumber: '', category: 'Laptop', siteId: 'site-bucharest', status: 'Online' });
+  const [incidentForm, setIncidentForm] = useState({ incidentNumber: '', siteId: 'site-bucharest', assetId: '', priority: 'Medium', category: 'Hardware', description: '', status: 'Open' });
+  const [assetModalOpen, setAssetModalOpen] = useState(false);
+  const [incidentModalOpen, setIncidentModalOpen] = useState(false);
+  const [updatingIncidentId, setUpdatingIncidentId] = useState('');
+  const [incidentStatusDraft, setIncidentStatusDraft] = useState('Open');
 
   useEffect(() => {
     if (!token) return;
@@ -95,6 +101,82 @@ function App() {
     setAlerts([]);
   }
 
+  async function createAsset(event) {
+    event.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/assets`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ ...assetForm, notes: 'Created from UI' })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Unable to create asset');
+      setAssetForm({ assetId: '', serialNumber: '', category: 'Laptop', siteId: 'site-bucharest', status: 'Online' });
+      setAssetModalOpen(false);
+      await loadDashboardData();
+    } catch (err) {
+      setError(err.message || 'Unable to create asset');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function createIncident(event) {
+    event.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/incidents`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(incidentForm)
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Unable to create incident');
+      setIncidentForm({ incidentNumber: '', siteId: 'site-bucharest', assetId: '', priority: 'Medium', category: 'Hardware', description: '', status: 'Open' });
+      setIncidentModalOpen(false);
+      await loadDashboardData();
+    } catch (err) {
+      setError(err.message || 'Unable to create incident');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function updateIncidentStatus(incidentId) {
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/incidents/${incidentId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: incidentStatusDraft, resolutionNotes: incidentStatusDraft === 'Resolved' ? 'Resolved from UI' : '' })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Unable to update incident');
+      setUpdatingIncidentId('');
+      await loadDashboardData();
+    } catch (err) {
+      setError(err.message || 'Unable to update incident');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   if (!token) {
     return (
       <div className="page-shell">
@@ -153,8 +235,37 @@ function App() {
         <article className="card">
           <div className="section-title">
             <h2>Assets</h2>
-            <button onClick={loadDashboardData} disabled={loading}>Refresh</button>
+            <div className="section-actions">
+              <button type="button" className="secondary-button" onClick={() => setAssetModalOpen(true)}>Create Asset</button>
+              <button onClick={loadDashboardData} disabled={loading}>Refresh</button>
+            </div>
           </div>
+          {assetModalOpen ? (
+            <div className="modal-overlay" onClick={() => setAssetModalOpen(false)}>
+              <div className="modal-card" onClick={(event) => event.stopPropagation()}>
+                <div className="section-title">
+                  <h3>Create Asset</h3>
+                  <button type="button" className="secondary-button" onClick={() => setAssetModalOpen(false)}>Close</button>
+                </div>
+                <form onSubmit={createAsset} className="stack-form">
+                  <input placeholder="Asset ID" value={assetForm.assetId} onChange={(event) => setAssetForm({ ...assetForm, assetId: event.target.value })} required />
+                  <input placeholder="Serial number" value={assetForm.serialNumber} onChange={(event) => setAssetForm({ ...assetForm, serialNumber: event.target.value })} required />
+                  <select value={assetForm.category} onChange={(event) => setAssetForm({ ...assetForm, category: event.target.value })}>
+                    <option value="Laptop">Laptop</option>
+                    <option value="Desktop">Desktop</option>
+                    <option value="Server">Server</option>
+                  </select>
+                  <input placeholder="Site ID" value={assetForm.siteId} onChange={(event) => setAssetForm({ ...assetForm, siteId: event.target.value })} required />
+                  <select value={assetForm.status} onChange={(event) => setAssetForm({ ...assetForm, status: event.target.value })}>
+                    <option value="Online">Online</option>
+                    <option value="Offline">Offline</option>
+                    <option value="Maintenance">Maintenance</option>
+                  </select>
+                  <button type="submit">Create asset</button>
+                </form>
+              </div>
+            </div>
+          ) : null}
           <ul className="list">
             {assets.map((asset) => (
               <li key={asset.id}>
@@ -171,7 +282,35 @@ function App() {
         <article className="card">
           <div className="section-title">
             <h2>Incidents</h2>
+            <button type="button" className="secondary-button" onClick={() => setIncidentModalOpen(true)}>Create Incident</button>
           </div>
+          {incidentModalOpen ? (
+            <div className="modal-overlay" onClick={() => setIncidentModalOpen(false)}>
+              <div className="modal-card" onClick={(event) => event.stopPropagation()}>
+                <div className="section-title">
+                  <h3>Create Incident</h3>
+                  <button type="button" className="secondary-button" onClick={() => setIncidentModalOpen(false)}>Close</button>
+                </div>
+                <form onSubmit={createIncident} className="stack-form">
+                  <input placeholder="Incident number" value={incidentForm.incidentNumber} onChange={(event) => setIncidentForm({ ...incidentForm, incidentNumber: event.target.value })} required />
+                  <input placeholder="Asset ID" value={incidentForm.assetId} onChange={(event) => setIncidentForm({ ...incidentForm, assetId: event.target.value })} required />
+                  <input placeholder="Site ID" value={incidentForm.siteId} onChange={(event) => setIncidentForm({ ...incidentForm, siteId: event.target.value })} required />
+                  <input placeholder="Description" value={incidentForm.description} onChange={(event) => setIncidentForm({ ...incidentForm, description: event.target.value })} required />
+                  <select value={incidentForm.priority} onChange={(event) => setIncidentForm({ ...incidentForm, priority: event.target.value })}>
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                  </select>
+                  <select value={incidentForm.status} onChange={(event) => setIncidentForm({ ...incidentForm, status: event.target.value })}>
+                    <option value="Open">Open</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Resolved">Resolved</option>
+                  </select>
+                  <button type="submit">Create incident</button>
+                </form>
+              </div>
+            </div>
+          ) : null}
           <ul className="list">
             {incidents.map((incident) => (
               <li key={incident.id}>
@@ -179,7 +318,21 @@ function App() {
                   <strong>{incident.incidentNumber}</strong>
                   <p>{incident.description}</p>
                 </div>
-                <span>{incident.slaStatus}</span>
+                <div className="incident-actions">
+                  {updatingIncidentId === incident.id ? (
+                    <>
+                      <select value={incidentStatusDraft} onChange={(event) => setIncidentStatusDraft(event.target.value)}>
+                        <option value="Open">Open</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Resolved">Resolved</option>
+                      </select>
+                      <button type="button" onClick={() => updateIncidentStatus(incident.id)}>Save</button>
+                    </>
+                  ) : (
+                    <button type="button" onClick={() => { setUpdatingIncidentId(incident.id); setIncidentStatusDraft(incident.status); }}>Update</button>
+                  )}
+                  <span>{incident.slaStatus}</span>
+                </div>
               </li>
             ))}
           </ul>
