@@ -53,6 +53,24 @@
       "severity": "high",
       "createdAt": "2026-08-04T09:35:00Z",
       "resolvedAt": null
+    },
+    {
+      "id": "alert-1785835795469-disk",
+      "assetId": "PLT-LAP-1785835795452",
+      "type": "low-disk-space",
+      "message": "Low disk space detected",
+      "severity": "high",
+      "createdAt": "2026-08-04T09:35:00Z",
+      "resolvedAt": null
+    },
+    {
+      "id": "alert-1785835795469-backup",
+      "assetId": "PLT-LAP-1785835795452",
+      "type": "backup-failed",
+      "message": "Backup failed",
+      "severity": "high",
+      "createdAt": "2026-08-04T09:35:00Z",
+      "resolvedAt": null
     }
   ]
 }

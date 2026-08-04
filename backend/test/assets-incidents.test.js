@@ -141,3 +141,47 @@ test('incident creation calculates SLA and stores the status', async () => {
   const body = await response.json();
   assert.equal(body.incident.slaStatus, 'within');
 });
+
+test('incident status updates are persisted', async () => {
+  const uniqueIncidentNumber = `INC-UPD-${Date.now()}`;
+
+  const login = await fetch(`${baseUrl}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'tech@example.com', password: 'Tech123!' })
+  });
+  const { token } = await login.json();
+
+  const created = await fetch(`${baseUrl}/incidents`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      incidentNumber: uniqueIncidentNumber,
+      siteId: 'site-bucharest',
+      assetId: 'PLT-LAP-001',
+      priority: 'Medium',
+      category: 'Software',
+      description: 'Update workflow test',
+      assignedTechnician: 'tech@example.com',
+      status: 'Open'
+    })
+  });
+  const createdBody = await created.json();
+
+  const response = await fetch(`${baseUrl}/incidents/${createdBody.incident.id}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({ status: 'Resolved', resolutionNotes: 'Fixed in testing' })
+  });
+
+  assert.equal(response.status, 200);
+  const updatedBody = await response.json();
+  assert.equal(updatedBody.incident.status, 'Resolved');
+  assert.equal(updatedBody.incident.resolutionNotes, 'Fixed in testing');
+});

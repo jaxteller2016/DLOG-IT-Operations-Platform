@@ -274,6 +274,31 @@ app.post('/incidents', authMiddleware, requireRole('Administrator', 'IT Technici
   return res.status(201).json({ incident });
 });
 
+app.patch('/incidents/:id', authMiddleware, requireRole('Administrator', 'IT Technician', 'Site Manager'), (req, res) => {
+  const { id } = req.params;
+  const updates = req.body || {};
+  const incidents = loadIncidents();
+  const incident = incidents.find((entry) => entry.id === id);
+
+  if (!incident) {
+    return res.status(404).json({ error: 'Incident not found' });
+  }
+
+  const allowedFields = ['status', 'assignedTechnician', 'resolutionNotes', 'priority', 'category', 'description'];
+  allowedFields.forEach((field) => {
+    if (updates[field] !== undefined) {
+      incident[field] = updates[field];
+    }
+  });
+
+  if (updates.status) {
+    incident.slaStatus = calculateSlaStatus(incident.responseDeadline, incident.resolutionDeadline);
+  }
+
+  saveIncidents(incidents);
+  return res.json({ incident });
+});
+
 app.post('/monitoring/heartbeat', authMiddleware, requireRole('Administrator', 'IT Technician'), (req, res) => {
   const { assetId, timestamp, ipAddress, cpuUsage, memoryUsage, diskFreePercent, backupStatus } = req.body || {};
 
