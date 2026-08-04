@@ -1,0 +1,32 @@
+{
+  "users": [
+    {
+      "id": "user-admin",
+      "email": "admin@example.com",
+      "password": "$2b$10$DZa.cgWOFAXUE3BeJ6rSAeb5lr15RA3Xpkbo0cuYxwFrp2w.NdMQK",
+      "role": "Administrator",
+      "siteId": "site-bucharest"
+    },
+    {
+      "id": "user-tech",
+      "email": "tech@example.com",
+      "password": "$2b$10$MHmBMgQ7GIj/SPR3qXCcn.FehfPPT0u6cTsxYlnD8xysN8UgRq.P6",
+      "role": "IT Technician",
+      "siteId": "site-bucharest"
+    },
+    {
+      "id": "user-manager",
+      "email": "manager@example.com",
+      "password": "$2b$10$7pKWlq9GuGKXt3DdJ7d/7O5QzpU6ixSW41mzwjxMgntpb2ig6iSRa",
+      "role": "Site Manager",
+      "siteId": "site-ploiesti"
+    },
+    {
+      "id": "user-viewer",
+      "email": "viewer@example.com",
+      "password": "$2b$10$wf.gSDnDzx4b7qzPjgWV6uS5Ofo4mMi6jKSmQ3769aB9/NO5.2X7W",
+      "role": "Management Viewer",
+      "siteId": null
+    }
+  ]
+}
