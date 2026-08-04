@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import LoginScreen from './components/LoginScreen';
 import TopBar from './components/TopBar';
@@ -7,8 +7,15 @@ import AssetList from './components/AssetList';
 import IncidentList from './components/IncidentList';
 import AlertFeed from './components/AlertFeed';
 
+const DASHBOARD_VIEW_KEY = 'dlog-dashboard-view';
+
 function AppContent() {
-  const { token, error } = useApp();
+  const { token, error, toast, clearToast } = useApp();
+  const [selectedView, setSelectedView] = useState(() => localStorage.getItem(DASHBOARD_VIEW_KEY) || 'assets');
+
+  useEffect(() => {
+    localStorage.setItem(DASHBOARD_VIEW_KEY, selectedView);
+  }, [selectedView]);
 
   if (!token) {
     return <LoginScreen />;
@@ -19,11 +26,24 @@ function AppContent() {
       <TopBar />
       {error ? <p className="error">{error}</p> : null}
       <StatsGrid />
-      <section className="content-grid">
-        <AssetList />
-        <IncidentList />
+      <section className="card view-selector-card">
+        <label htmlFor="dashboard-view">Dashboard table</label>
+        <select id="dashboard-view" value={selectedView} onChange={(event) => setSelectedView(event.target.value)}>
+          <option value="assets">Assets</option>
+          <option value="incidents">Incidents</option>
+          <option value="alerts">Alert Feed</option>
+        </select>
       </section>
-      <AlertFeed />
+
+      {selectedView === 'assets' ? <AssetList /> : null}
+      {selectedView === 'incidents' ? <IncidentList /> : null}
+      {selectedView === 'alerts' ? <AlertFeed /> : null}
+
+      {toast ? (
+        <div className={`toast ${toast.type === 'error' ? 'toast-error' : 'toast-success'}`} onClick={clearToast}>
+          <span>{toast.message}</span>
+        </div>
+      ) : null}
     </div>
   );
 }

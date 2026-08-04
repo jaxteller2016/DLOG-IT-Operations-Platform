@@ -20,6 +20,24 @@ router.get('/', authMiddleware, (req, res) => {
   return res.json({ incidents });
 });
 
+router.get('/:id', authMiddleware, (req, res) => {
+  const { id } = req.params;
+  const users = seedUsers();
+  const currentUser = users.find((entry) => entry.id === req.user.id);
+  const incidents = loadIncidents();
+  const incident = incidents.find((entry) => entry.id === id);
+
+  if (!incident) {
+    return res.status(404).json({ error: 'Incident not found' });
+  }
+
+  if (!userCanAccessSite(currentUser, incident.siteId)) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  return res.json({ incident });
+});
+
 router.post('/', authMiddleware, requireRole('Administrator', 'IT Technician', 'Site Manager'), (req, res) => {
   const { incidentNumber, siteId, assetId, priority, category, description, assignedTechnician, status, responseDeadline, resolutionDeadline, resolutionNotes } = req.body || {};
 

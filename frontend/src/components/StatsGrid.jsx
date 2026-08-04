@@ -12,7 +12,7 @@ export default function StatsGrid() {
       </article>
       <article className="card stat-card">
         <p>Open incidents</p>
-        <strong>{incidents.filter((incident) => incident.status !== 'Resolved').length}</strong>
+        <strong>{incidents.filter((incident) => incident.status === 'Open').length}</strong>
       </article>
       <article className="card stat-card">
         <p>Active alerts</p>

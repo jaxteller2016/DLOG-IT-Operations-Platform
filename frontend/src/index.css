@@ -18,7 +18,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -99,6 +100,16 @@ button:disabled {
   gap: 16px;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   margin-bottom: 16px;
+}
+
+.view-selector-card {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.view-selector-card select {
+  max-width: 280px;
 }
 
 .stat-card strong {
@@ -193,6 +204,62 @@ button:disabled {
   color: #94a9c1;
 }
 
+.filters-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 760px;
+}
+
+.data-table th,
+.data-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: left;
+  vertical-align: top;
+}
+
+.data-table th {
+  color: #c4daff;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.data-table td p {
+  margin: 4px 0 0;
+  color: #94a9c1;
+  font-size: 0.9rem;
+}
+
+.table-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.empty-cell {
+  text-align: center;
+  color: #94a9c1;
+}
+
+.pagination-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
 .error {
   margin-top: 12px;
   color: #ff8a8a;
@@ -202,4 +269,24 @@ button:disabled {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.toast {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  color: white;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  z-index: 1100;
+}
+
+.toast-success {
+  background: #1f7a4b;
+}
+
+.toast-error {
+  background: #b64545;
 }
