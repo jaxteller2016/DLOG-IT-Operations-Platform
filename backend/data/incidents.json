@@ -1,0 +1,68 @@
+{
+  "incidents": [
+    {
+      "id": "incident-1785833025744",
+      "incidentNumber": "INC-1001",
+      "siteId": "site-bucharest",
+      "assetId": "PLT-LAP-001",
+      "priority": "High",
+      "category": "Hardware",
+      "description": "Laptop not responding",
+      "assignedTechnician": "tech@example.com",
+      "status": "Open",
+      "createdAt": "2026-08-04T08:43:45.744Z",
+      "responseDeadline": "2026-08-04T13:43:45.741Z",
+      "resolutionDeadline": "2026-08-05T08:43:45.741Z",
+      "resolutionNotes": "",
+      "slaStatus": "within"
+    },
+    {
+      "id": "incident-1785833365960",
+      "incidentNumber": "INC-1785833365863",
+      "siteId": "site-bucharest",
+      "assetId": "PLT-LAP-001",
+      "priority": "High",
+      "category": "Hardware",
+      "description": "Laptop not responding",
+      "assignedTechnician": "tech@example.com",
+      "status": "Open",
+      "createdAt": "2026-08-04T08:49:25.960Z",
+      "responseDeadline": "2026-08-04T13:49:25.958Z",
+      "resolutionDeadline": "2026-08-05T08:49:25.958Z",
+      "resolutionNotes": "",
+      "slaStatus": "within"
+    },
+    {
+      "id": "incident-1785833405602",
+      "incidentNumber": "INC-1785833405504",
+      "siteId": "site-bucharest",
+      "assetId": "PLT-LAP-001",
+      "priority": "High",
+      "category": "Hardware",
+      "description": "Laptop not responding",
+      "assignedTechnician": "tech@example.com",
+      "status": "Open",
+      "createdAt": "2026-08-04T08:50:05.602Z",
+      "responseDeadline": "2026-08-04T13:50:05.599Z",
+      "resolutionDeadline": "2026-08-05T08:50:05.599Z",
+      "resolutionNotes": "",
+      "slaStatus": "within"
+    },
+    {
+      "id": "incident-1785833468370",
+      "incidentNumber": "INC-1785833468275",
+      "siteId": "site-bucharest",
+      "assetId": "PLT-LAP-001",
+      "priority": "High",
+      "category": "Hardware",
+      "description": "Laptop not responding",
+      "assignedTechnician": "tech@example.com",
+      "status": "Open",
+      "createdAt": "2026-08-04T08:51:08.370Z",
+      "responseDeadline": "2026-08-04T13:51:08.368Z",
+      "resolutionDeadline": "2026-08-05T08:51:08.368Z",
+      "resolutionNotes": "",
+      "slaStatus": "within"
+    }
+  ]
+}

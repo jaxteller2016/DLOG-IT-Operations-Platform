@@ -1,7 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { app, seedUsers, createToken } = require('../src/server');
-const http = require('http');
+const { app } = require('../src/server');
 
 let server;
 let baseUrl;
