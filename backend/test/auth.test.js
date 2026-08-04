@@ -67,3 +67,33 @@ test('auth/me returns the current user', async () => {
   const body = await response.json();
   assert.equal(body.user.email, 'tech@example.com');
 });
+
+test('audit logs endpoint is admin-only and returns entries', async () => {
+  const adminLogin = await fetch(`${baseUrl}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'admin@example.com', password: 'Admin123!' })
+  });
+  const adminBody = await adminLogin.json();
+
+  const adminResponse = await fetch(`${baseUrl}/audit?limit=10`, {
+    headers: { Authorization: `Bearer ${adminBody.token}` }
+  });
+
+  assert.equal(adminResponse.status, 200);
+  const auditBody = await adminResponse.json();
+  assert.ok(Array.isArray(auditBody.entries));
+
+  const viewerLogin = await fetch(`${baseUrl}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'viewer@example.com', password: 'Viewer123!' })
+  });
+  const viewerBody = await viewerLogin.json();
+
+  const forbiddenResponse = await fetch(`${baseUrl}/audit`, {
+    headers: { Authorization: `Bearer ${viewerBody.token}` }
+  });
+
+  assert.equal(forbiddenResponse.status, 403);
+});

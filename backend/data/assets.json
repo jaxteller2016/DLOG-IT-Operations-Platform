@@ -521,6 +521,24 @@
       "status": "Online",
       "notes": "Created from UI",
       "lastOnlineTimestamp": null
+    },
+    {
+      "id": "asset-1785873841906",
+      "assetId": "PLT-LAP-1992035648",
+      "serialNumber": "98745789456321",
+      "category": "Laptop",
+      "manufacturer": "",
+      "model": "",
+      "siteId": "site-bucharest",
+      "assignedEmployee": "",
+      "ipAddress": "",
+      "macAddress": "",
+      "operatingSystem": "",
+      "purchaseDate": "",
+      "warrantyExpirationDate": "",
+      "status": "Online",
+      "notes": "Created from UI",
+      "lastOnlineTimestamp": null
     }
   ]
 }

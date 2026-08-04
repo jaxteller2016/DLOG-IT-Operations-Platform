@@ -235,3 +235,123 @@ test('incident status updates are persisted', async () => {
   assert.equal(updatedBody.incident.status, 'Resolved');
   assert.equal(updatedBody.incident.resolutionNotes, 'Fixed in testing');
 });
+
+test('assets endpoint supports pagination and filtering', async () => {
+  const unique = Date.now();
+
+  const login = await fetch(`${baseUrl}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'admin@example.com', password: 'Admin123!' })
+  });
+  const { token } = await login.json();
+
+  await fetch(`${baseUrl}/assets`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      assetId: `PG-ASSET-${unique}-1`,
+      serialNumber: `PG-SN-${unique}-1`,
+      category: 'Laptop',
+      siteId: 'site-bucharest',
+      status: 'Online'
+    })
+  });
+
+  await fetch(`${baseUrl}/assets`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      assetId: `PG-ASSET-${unique}-2`,
+      serialNumber: `PG-SN-${unique}-2`,
+      category: 'Desktop',
+      siteId: 'site-ploiesti',
+      status: 'Offline'
+    })
+  });
+
+  const pagedResponse = await fetch(`${baseUrl}/assets?paginate=true&page=1&pageSize=1`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  assert.equal(pagedResponse.status, 200);
+  const pagedBody = await pagedResponse.json();
+  assert.ok(Array.isArray(pagedBody.assets));
+  assert.equal(pagedBody.assets.length, 1);
+  assert.ok(pagedBody.pagination);
+  assert.equal(pagedBody.pagination.pageSize, 1);
+
+  const filteredResponse = await fetch(`${baseUrl}/assets?siteId=site-ploiesti&status=Offline`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  assert.equal(filteredResponse.status, 200);
+  const filteredBody = await filteredResponse.json();
+  assert.ok(filteredBody.assets.every((asset) => asset.siteId === 'site-ploiesti' && asset.status === 'Offline'));
+});
+
+test('incidents endpoint supports pagination and filtering', async () => {
+  const unique = Date.now();
+
+  const login = await fetch(`${baseUrl}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'tech@example.com', password: 'Tech123!' })
+  });
+  const { token } = await login.json();
+
+  await fetch(`${baseUrl}/incidents`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      incidentNumber: `PG-INC-${unique}-1`,
+      siteId: 'site-bucharest',
+      assetId: 'PLT-LAP-001',
+      priority: 'High',
+      category: 'Hardware',
+      description: 'Pagination test incident one',
+      status: 'Open'
+    })
+  });
+
+  await fetch(`${baseUrl}/incidents`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      incidentNumber: `PG-INC-${unique}-2`,
+      siteId: 'site-bucharest',
+      assetId: 'PLT-LAP-001',
+      priority: 'Low',
+      category: 'Software',
+      description: 'Pagination test incident two',
+      status: 'Resolved'
+    })
+  });
+
+  const pagedResponse = await fetch(`${baseUrl}/incidents?paginate=true&page=1&pageSize=1`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  assert.equal(pagedResponse.status, 200);
+  const pagedBody = await pagedResponse.json();
+  assert.ok(Array.isArray(pagedBody.incidents));
+  assert.equal(pagedBody.incidents.length, 1);
+  assert.ok(pagedBody.pagination);
+  assert.equal(pagedBody.pagination.pageSize, 1);
+
+  const filteredResponse = await fetch(`${baseUrl}/incidents?status=Resolved&priority=Low&search=incident%20two`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  assert.equal(filteredResponse.status, 200);
+  const filteredBody = await filteredResponse.json();
+  assert.ok(filteredBody.incidents.every((incident) => incident.status === 'Resolved' && incident.priority === 'Low'));
+});

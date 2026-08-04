@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { app } = require('../src/server');
+const { loadMonitoringResults, loadAuditLogs } = require('../src/dataStore');
 
 let server;
 let baseUrl;
@@ -82,4 +83,27 @@ test('heartbeat updates asset status and creates alerts', async () => {
   assert.equal(body.asset.lastOnlineTimestamp, '2026-08-04T09:35:00Z');
   assert.ok(body.alerts.some((alert) => alert.type === 'low-disk-space'));
   assert.ok(body.alerts.some((alert) => alert.type === 'backup-failed'));
+
+  const monitoringResults = loadMonitoringResults();
+  assert.ok(monitoringResults.some((entry) => entry.assetId === assetId && entry.timestamp === '2026-08-04T09:35:00Z'));
+
+  const auditLogs = loadAuditLogs(200);
+  assert.ok(auditLogs.some((entry) => entry.entity === 'asset' && entry.action === 'heartbeat-update'));
+  assert.ok(auditLogs.some((entry) => entry.entity === 'alert' && entry.action === 'create'));
+
+  const pagedAlerts = await fetch(`${baseUrl}/alerts?paginate=true&page=1&pageSize=1`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  assert.equal(pagedAlerts.status, 200);
+  const pagedBody = await pagedAlerts.json();
+  assert.ok(Array.isArray(pagedBody.alerts));
+  assert.equal(pagedBody.alerts.length, 1);
+  assert.ok(pagedBody.pagination);
+
+  const activeBackupAlerts = await fetch(`${baseUrl}/alerts?state=active&type=backup-failed`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  assert.equal(activeBackupAlerts.status, 200);
+  const filteredBody = await activeBackupAlerts.json();
+  assert.ok(filteredBody.alerts.every((alert) => alert.type === 'backup-failed' && alert.resolvedAt === null));
 });

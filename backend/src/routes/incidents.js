@@ -1,8 +1,17 @@
 const express = require('express');
 const { authMiddleware, requireRole, userCanAccessSite, seedUsers } = require('../auth');
-const { loadIncidents, saveIncidents } = require('../dataStore');
+const { loadIncidents, findIncidentById, findIncidentByNumber, upsertIncident, logAuditEvent } = require('../dataStore');
 
 const router = express.Router();
+
+function parsePaging(query) {
+  const shouldPaginate = query.paginate === 'true' || query.page !== undefined || query.pageSize !== undefined;
+  if (!shouldPaginate) return null;
+
+  const page = Math.max(1, Number.parseInt(query.page, 10) || 1);
+  const pageSize = Math.max(1, Math.min(200, Number.parseInt(query.pageSize, 10) || 20));
+  return { page, pageSize };
+}
 
 function calculateSlaStatus(responseDeadline, resolutionDeadline) {
   const now = new Date();
@@ -16,16 +25,51 @@ function calculateSlaStatus(responseDeadline, resolutionDeadline) {
 router.get('/', authMiddleware, (req, res) => {
   const users = seedUsers();
   const currentUser = users.find((entry) => entry.id === req.user.id);
-  const incidents = loadIncidents().filter((incident) => userCanAccessSite(currentUser, incident.siteId));
-  return res.json({ incidents });
+  const search = (req.query.search || '').toString().trim().toLowerCase();
+  const status = (req.query.status || '').toString().trim();
+  const priority = (req.query.priority || '').toString().trim();
+  const siteId = (req.query.siteId || '').toString().trim();
+
+  const filteredIncidents = loadIncidents().filter((incident) => {
+    if (!userCanAccessSite(currentUser, incident.siteId)) return false;
+    if (status && incident.status !== status) return false;
+    if (priority && incident.priority !== priority) return false;
+    if (siteId && incident.siteId !== siteId) return false;
+    if (!search) return true;
+
+    return incident.incidentNumber.toLowerCase().includes(search)
+      || incident.assetId.toLowerCase().includes(search)
+      || incident.description.toLowerCase().includes(search)
+      || incident.siteId.toLowerCase().includes(search);
+  });
+
+  const paging = parsePaging(req.query);
+  if (!paging) {
+    return res.json({ incidents: filteredIncidents });
+  }
+
+  const total = filteredIncidents.length;
+  const totalPages = Math.max(1, Math.ceil(total / paging.pageSize));
+  const page = Math.min(paging.page, totalPages);
+  const start = (page - 1) * paging.pageSize;
+  const incidents = filteredIncidents.slice(start, start + paging.pageSize);
+
+  return res.json({
+    incidents,
+    pagination: {
+      page,
+      pageSize: paging.pageSize,
+      total,
+      totalPages
+    }
+  });
 });
 
 router.get('/:id', authMiddleware, (req, res) => {
   const { id } = req.params;
   const users = seedUsers();
   const currentUser = users.find((entry) => entry.id === req.user.id);
-  const incidents = loadIncidents();
-  const incident = incidents.find((entry) => entry.id === id);
+  const incident = findIncidentById(id);
 
   if (!incident) {
     return res.status(404).json({ error: 'Incident not found' });
@@ -45,8 +89,7 @@ router.post('/', authMiddleware, requireRole('Administrator', 'IT Technician', '
     return res.status(400).json({ error: 'incidentNumber, siteId, assetId, priority, category, and description are required' });
   }
 
-  const incidents = loadIncidents();
-  const duplicateIncident = incidents.find((incident) => incident.incidentNumber === incidentNumber);
+  const duplicateIncident = findIncidentByNumber(incidentNumber);
   if (duplicateIncident) {
     return res.status(409).json({ error: 'Duplicate incident number' });
   }
@@ -68,20 +111,31 @@ router.post('/', authMiddleware, requireRole('Administrator', 'IT Technician', '
     slaStatus: calculateSlaStatus(responseDeadline || new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(), resolutionDeadline || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString())
   };
 
-  incidents.push(incident);
-  saveIncidents(incidents);
+  upsertIncident(incident);
+
+  logAuditEvent({
+    source: 'user',
+    actor: req.user.email || req.user.id,
+    entity: 'incident',
+    entityId: incident.id,
+    action: 'create',
+    previousValue: null,
+    newValue: incident
+  });
+
   return res.status(201).json({ incident });
 });
 
 router.patch('/:id', authMiddleware, requireRole('Administrator', 'IT Technician', 'Site Manager'), (req, res) => {
   const { id } = req.params;
   const updates = req.body || {};
-  const incidents = loadIncidents();
-  const incident = incidents.find((entry) => entry.id === id);
+  const incident = findIncidentById(id);
 
   if (!incident) {
     return res.status(404).json({ error: 'Incident not found' });
   }
+
+  const previousIncident = { ...incident };
 
   const allowedFields = ['status', 'assignedTechnician', 'resolutionNotes', 'priority', 'category', 'description'];
   allowedFields.forEach((field) => {
@@ -94,7 +148,18 @@ router.patch('/:id', authMiddleware, requireRole('Administrator', 'IT Technician
     incident.slaStatus = calculateSlaStatus(incident.responseDeadline, incident.resolutionDeadline);
   }
 
-  saveIncidents(incidents);
+  upsertIncident(incident);
+
+  logAuditEvent({
+    source: 'user',
+    actor: req.user.email || req.user.id,
+    entity: 'incident',
+    entityId: incident.id,
+    action: 'update',
+    previousValue: previousIncident,
+    newValue: incident
+  });
+
   return res.json({ incident });
 });
 

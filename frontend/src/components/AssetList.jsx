@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 
 const INITIAL_ASSET_FORM = { assetId: '', serialNumber: '', category: 'Laptop', siteId: 'site-bucharest', status: 'Online' };
@@ -25,30 +25,65 @@ function formatTimestamp(value) {
 }
 
 export default function AssetList() {
-  const { assets, loading, refreshDashboard, createAsset } = useApp();
+  const { loading, refreshDashboard, createAsset, fetchAssetsView, showToast } = useApp();
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState(INITIAL_ASSET_FORM);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [siteFilter, setSiteFilter] = useState('all');
   const [page, setPage] = useState(1);
+  const [tableLoading, setTableLoading] = useState(false);
+  const [tableAssets, setTableAssets] = useState([]);
+  const [pagination, setPagination] = useState({ page: 1, pageSize: PAGE_SIZE, total: 0, totalPages: 1 });
 
-  const availableSites = Array.from(new Set(assets.map((asset) => asset.siteId).filter(Boolean))).sort();
-  const filteredAssets = assets.filter((asset) => {
-    const query = search.trim().toLowerCase();
-    const matchesQuery = !query
-      || asset.assetId.toLowerCase().includes(query)
-      || asset.serialNumber.toLowerCase().includes(query)
-      || asset.category.toLowerCase().includes(query)
-      || asset.siteId.toLowerCase().includes(query);
-    const matchesStatus = statusFilter === 'all' || asset.status === statusFilter;
-    const matchesSite = siteFilter === 'all' || asset.siteId === siteFilter;
-    return matchesQuery && matchesStatus && matchesSite;
-  });
+  const loadAssetsPage = useCallback(async () => {
+    setTableLoading(true);
+    try {
+      const data = await fetchAssetsView({
+        page,
+        pageSize: PAGE_SIZE,
+        search,
+        status: statusFilter,
+        siteId: siteFilter
+      });
 
-  const totalPages = Math.max(1, Math.ceil(filteredAssets.length / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
-  const paginatedAssets = filteredAssets.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+      if (data.pagination) {
+        setTableAssets(data.assets || []);
+        setPagination(data.pagination);
+      } else {
+        const allAssets = data.assets || [];
+        const query = search.trim().toLowerCase();
+        const filteredAssets = allAssets.filter((asset) => {
+          const matchesQuery = !query
+            || asset.assetId.toLowerCase().includes(query)
+            || asset.serialNumber.toLowerCase().includes(query)
+            || asset.category.toLowerCase().includes(query)
+            || asset.siteId.toLowerCase().includes(query);
+          const matchesStatus = statusFilter === 'all' || asset.status === statusFilter;
+          const matchesSite = siteFilter === 'all' || asset.siteId === siteFilter;
+          return matchesQuery && matchesStatus && matchesSite;
+        });
+
+        const total = filteredAssets.length;
+        const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+        const safePage = Math.min(page, totalPages);
+        const start = (safePage - 1) * PAGE_SIZE;
+        setTableAssets(filteredAssets.slice(start, start + PAGE_SIZE));
+        setPagination({ page: safePage, pageSize: PAGE_SIZE, total, totalPages });
+      }
+    } catch (error) {
+      showToast(error.message || 'Unable to load assets', 'error');
+    } finally {
+      setTableLoading(false);
+    }
+  }, [fetchAssetsView, page, search, showToast, siteFilter, statusFilter]);
+
+  useEffect(() => {
+    loadAssetsPage();
+  }, [loadAssetsPage]);
+
+  const currentPage = pagination.page || 1;
+  const totalPages = pagination.totalPages || 1;
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -56,6 +91,12 @@ export default function AssetList() {
     setForm(INITIAL_ASSET_FORM);
     setModalOpen(false);
     await refreshDashboard();
+    await loadAssetsPage();
+  }
+
+  async function handleRefresh() {
+    await refreshDashboard();
+    await loadAssetsPage();
   }
 
   return (
@@ -64,7 +105,7 @@ export default function AssetList() {
         <h2>Assets</h2>
         <div className="section-actions">
           <button type="button" className="secondary-button" onClick={() => setModalOpen(true)}>Create Asset</button>
-          <button onClick={refreshDashboard} disabled={loading}>Refresh</button>
+          <button onClick={handleRefresh} disabled={loading || tableLoading}>Refresh</button>
         </div>
       </div>
 
@@ -129,8 +170,8 @@ export default function AssetList() {
           }}
         >
           <option value="all">All sites</option>
-          {availableSites.map((siteId) => (
-            <option key={siteId} value={siteId}>{siteId}</option>
+          {SITE_OPTIONS.map((site) => (
+            <option key={site.value} value={site.value}>{site.label}</option>
           ))}
         </select>
       </div>
@@ -148,11 +189,15 @@ export default function AssetList() {
             </tr>
           </thead>
           <tbody>
-            {paginatedAssets.length === 0 ? (
+            {tableLoading ? (
+              <tr>
+                <td colSpan={6} className="empty-cell">Loading assets...</td>
+              </tr>
+            ) : tableAssets.length === 0 ? (
               <tr>
                 <td colSpan={6} className="empty-cell">No assets match your filter.</td>
               </tr>
-            ) : paginatedAssets.map((asset) => (
+            ) : tableAssets.map((asset) => (
               <tr key={asset.id}>
                 <td>{asset.assetId}</td>
                 <td>{asset.serialNumber}</td>
@@ -167,9 +212,9 @@ export default function AssetList() {
       </div>
 
       <div className="pagination-row">
-        <button type="button" className="secondary-button" disabled={currentPage === 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>Previous</button>
+        <button type="button" className="secondary-button" disabled={currentPage === 1 || tableLoading} onClick={() => setPage((value) => Math.max(1, value - 1))}>Previous</button>
         <span>Page {currentPage} of {totalPages}</span>
-        <button type="button" className="secondary-button" disabled={currentPage === totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>Next</button>
+        <button type="button" className="secondary-button" disabled={currentPage === totalPages || tableLoading} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>Next</button>
       </div>
     </article>
   );

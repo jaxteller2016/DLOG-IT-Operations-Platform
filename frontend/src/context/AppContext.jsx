@@ -8,6 +8,16 @@ function normalizeToken(value) {
   return String(value).replace(/^Bearer\s+/i, '').trim();
 }
 
+function toQueryString(params = {}) {
+  const searchParams = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '' || value === 'all') return;
+    searchParams.set(key, String(value));
+  });
+  const query = searchParams.toString();
+  return query ? `?${query}` : '';
+}
+
 const AppContext = createContext(null);
 
 export function AppProvider({ children }) {
@@ -210,6 +220,34 @@ export function AppProvider({ children }) {
     return updateIncidentDetails(incidentId, { status, resolutionNotes: status === 'Resolved' ? 'Resolved from UI' : '' });
   }
 
+  async function fetchAssetsView(params = {}) {
+    const query = toQueryString({ paginate: true, ...params });
+    return requestJson(`/assets${query}`, {
+      headers: { Authorization: `Bearer ${authToken}` }
+    });
+  }
+
+  async function fetchIncidentsView(params = {}) {
+    const query = toQueryString({ paginate: true, ...params });
+    return requestJson(`/incidents${query}`, {
+      headers: { Authorization: `Bearer ${authToken}` }
+    });
+  }
+
+  async function fetchAlertsView(params = {}) {
+    const query = toQueryString({ paginate: true, ...params });
+    return requestJson(`/alerts${query}`, {
+      headers: { Authorization: `Bearer ${authToken}` }
+    });
+  }
+
+  async function fetchAuditLogs(params = {}) {
+    const query = toQueryString(params);
+    return requestJson(`/audit${query}`, {
+      headers: { Authorization: `Bearer ${authToken}` }
+    });
+  }
+
   const value = useMemo(() => ({
     token,
     user,
@@ -227,8 +265,12 @@ export function AppProvider({ children }) {
     createIncident,
     updateIncidentDetails,
     updateIncidentStatus,
+    fetchAssetsView,
+    fetchIncidentsView,
+    fetchAlertsView,
+    fetchAuditLogs,
     refreshDashboard: loadDashboardData
-  }), [token, user, assets, incidents, alerts, loading, error, toast, showToast, clearToast, handleLogin, handleLogout, createAsset, createIncident, updateIncidentDetails, updateIncidentStatus, loadDashboardData]);
+  }), [token, user, assets, incidents, alerts, loading, error, toast, showToast, clearToast, handleLogin, handleLogout, createAsset, createIncident, updateIncidentDetails, updateIncidentStatus, fetchAssetsView, fetchIncidentsView, fetchAlertsView, fetchAuditLogs, loadDashboardData]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }

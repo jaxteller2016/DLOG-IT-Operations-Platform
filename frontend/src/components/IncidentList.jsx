@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || window.location.origin;
@@ -13,7 +13,7 @@ const SITE_OPTIONS = [
 ];
 
 export default function IncidentList() {
-  const { incidents, loading, createIncident, updateIncidentDetails, updateIncidentStatus, token } = useApp();
+  const { loading, createIncident, updateIncidentDetails, updateIncidentStatus, token, fetchIncidentsView, showToast, refreshDashboard } = useApp();
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState(INITIAL_INCIDENT_FORM);
   const [updatingIncidentId, setUpdatingIncidentId] = useState('');
@@ -24,33 +24,72 @@ export default function IncidentList() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [page, setPage] = useState(1);
+  const [tableLoading, setTableLoading] = useState(false);
+  const [tableIncidents, setTableIncidents] = useState([]);
+  const [pagination, setPagination] = useState({ page: 1, pageSize: PAGE_SIZE, total: 0, totalPages: 1 });
 
-  const filteredIncidents = incidents.filter((incident) => {
-    const query = search.trim().toLowerCase();
-    const matchesQuery = !query
-      || incident.incidentNumber.toLowerCase().includes(query)
-      || incident.assetId.toLowerCase().includes(query)
-      || incident.description.toLowerCase().includes(query)
-      || incident.siteId.toLowerCase().includes(query);
-    const matchesStatus = statusFilter === 'all' || incident.status === statusFilter;
-    const matchesPriority = priorityFilter === 'all' || incident.priority === priorityFilter;
-    return matchesQuery && matchesStatus && matchesPriority;
-  });
+  const loadIncidentsPage = useCallback(async () => {
+    setTableLoading(true);
+    try {
+      const data = await fetchIncidentsView({
+        page,
+        pageSize: PAGE_SIZE,
+        search,
+        status: statusFilter,
+        priority: priorityFilter
+      });
 
-  const totalPages = Math.max(1, Math.ceil(filteredIncidents.length / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
-  const paginatedIncidents = filteredIncidents.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+      if (data.pagination) {
+        setTableIncidents(data.incidents || []);
+        setPagination(data.pagination);
+      } else {
+        const allIncidents = data.incidents || [];
+        const query = search.trim().toLowerCase();
+        const filteredIncidents = allIncidents.filter((incident) => {
+          const matchesQuery = !query
+            || incident.incidentNumber.toLowerCase().includes(query)
+            || incident.assetId.toLowerCase().includes(query)
+            || incident.description.toLowerCase().includes(query)
+            || incident.siteId.toLowerCase().includes(query);
+          const matchesStatus = statusFilter === 'all' || incident.status === statusFilter;
+          const matchesPriority = priorityFilter === 'all' || incident.priority === priorityFilter;
+          return matchesQuery && matchesStatus && matchesPriority;
+        });
+
+        const total = filteredIncidents.length;
+        const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+        const safePage = Math.min(page, totalPages);
+        const start = (safePage - 1) * PAGE_SIZE;
+        setTableIncidents(filteredIncidents.slice(start, start + PAGE_SIZE));
+        setPagination({ page: safePage, pageSize: PAGE_SIZE, total, totalPages });
+      }
+    } catch (error) {
+      showToast(error.message || 'Unable to load incidents', 'error');
+    } finally {
+      setTableLoading(false);
+    }
+  }, [fetchIncidentsView, page, priorityFilter, search, showToast, statusFilter]);
+
+  useEffect(() => {
+    loadIncidentsPage();
+  }, [loadIncidentsPage]);
+
+  const currentPage = pagination.page || 1;
+  const totalPages = pagination.totalPages || 1;
 
   async function handleSubmit(event) {
     event.preventDefault();
     await createIncident(form);
     setForm(INITIAL_INCIDENT_FORM);
     setModalOpen(false);
+    await refreshDashboard();
+    await loadIncidentsPage();
   }
 
   async function handleUpdate(incidentId) {
     await updateIncidentStatus(incidentId, incidentStatusDraft);
     setUpdatingIncidentId('');
+    await loadIncidentsPage();
   }
 
   async function openIncidentDetails(incident) {
@@ -80,6 +119,7 @@ export default function IncidentList() {
       resolutionNotes: incidentStatusDraft === 'Resolved' ? 'Resolved from UI' : selectedIncident.resolutionNotes || ''
     });
     setSelectedIncident(null);
+    await loadIncidentsPage();
   }
 
   return (
@@ -199,11 +239,15 @@ export default function IncidentList() {
             </tr>
           </thead>
           <tbody>
-            {paginatedIncidents.length === 0 ? (
+            {tableLoading ? (
+              <tr>
+                <td colSpan={8} className="empty-cell">Loading incidents...</td>
+              </tr>
+            ) : tableIncidents.length === 0 ? (
               <tr>
                 <td colSpan={8} className="empty-cell">No incidents match your filter.</td>
               </tr>
-            ) : paginatedIncidents.map((incident) => (
+            ) : tableIncidents.map((incident) => (
               <tr key={incident.id}>
                 <td>
                   <strong>{incident.incidentNumber}</strong>
@@ -242,9 +286,9 @@ export default function IncidentList() {
       </div>
 
       <div className="pagination-row">
-        <button type="button" className="secondary-button" disabled={currentPage === 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>Previous</button>
+        <button type="button" className="secondary-button" disabled={currentPage === 1 || tableLoading} onClick={() => setPage((value) => Math.max(1, value - 1))}>Previous</button>
         <span>Page {currentPage} of {totalPages}</span>
-        <button type="button" className="secondary-button" disabled={currentPage === totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>Next</button>
+        <button type="button" className="secondary-button" disabled={currentPage === totalPages || tableLoading} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>Next</button>
       </div>
     </article>
   );

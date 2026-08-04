@@ -6,16 +6,24 @@ import StatsGrid from './components/StatsGrid';
 import AssetList from './components/AssetList';
 import IncidentList from './components/IncidentList';
 import AlertFeed from './components/AlertFeed';
+import AuditLogFeed from './components/AuditLogFeed';
 
 const DASHBOARD_VIEW_KEY = 'dlog-dashboard-view';
 
 function AppContent() {
-  const { token, error, toast, clearToast } = useApp();
+  const { token, user, error, toast, clearToast } = useApp();
   const [selectedView, setSelectedView] = useState(() => localStorage.getItem(DASHBOARD_VIEW_KEY) || 'assets');
+  const isAdmin = user?.role === 'Administrator';
 
   useEffect(() => {
     localStorage.setItem(DASHBOARD_VIEW_KEY, selectedView);
   }, [selectedView]);
+
+  useEffect(() => {
+    if (!isAdmin && selectedView === 'audit') {
+      setSelectedView('assets');
+    }
+  }, [isAdmin, selectedView]);
 
   if (!token) {
     return <LoginScreen />;
@@ -32,12 +40,14 @@ function AppContent() {
           <option value="assets">Assets</option>
           <option value="incidents">Incidents</option>
           <option value="alerts">Alert Feed</option>
+          {isAdmin ? <option value="audit">Audit Log</option> : null}
         </select>
       </section>
 
       {selectedView === 'assets' ? <AssetList /> : null}
       {selectedView === 'incidents' ? <IncidentList /> : null}
       {selectedView === 'alerts' ? <AlertFeed /> : null}
+      {selectedView === 'audit' && isAdmin ? <AuditLogFeed /> : null}
 
       {toast ? (
         <div className={`toast ${toast.type === 'error' ? 'toast-error' : 'toast-success'}`} onClick={clearToast}>

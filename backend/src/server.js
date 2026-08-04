@@ -8,6 +8,7 @@ const assetRoutes = require('./routes/assets');
 const incidentRoutes = require('./routes/incidents');
 const monitoringRoutes = require('./routes/monitoring');
 const alertRoutes = require('./routes/alerts');
+const auditRoutes = require('./routes/audit');
 const { loadUsers, saveUsers } = require('./dataStore');
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
@@ -43,6 +44,7 @@ app.use('/assets', assetRoutes);
 app.use('/incidents', incidentRoutes);
 app.use('/monitoring', monitoringRoutes);
 app.use('/alerts', alertRoutes);
+app.use('/audit', auditRoutes);
 
 if (require.main === module) {
   app.listen(PORT, HOST, () => {

@@ -33,3 +33,8 @@ coverage/
 
 # Supabase local files
 supabase/.temp/
+
+# Local SQLite database files
+backend/data/dlog.sqlite
+backend/data/dlog.sqlite-shm
+backend/data/dlog.sqlite-wal

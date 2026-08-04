@@ -5,10 +5,12 @@
   "main": "src/server.js",
   "scripts": {
     "dev": "node src/server.js",
+    "migrate": "node src/migrate.js",
     "test": "node --test --test-concurrency=1 test/*.test.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^13.0.2",
     "cors": "^2.8.0",
     "dotenv": "^16.4.2",
     "express": "^4.21.2",
