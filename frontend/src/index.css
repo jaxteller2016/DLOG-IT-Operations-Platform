@@ -102,18 +102,48 @@ button:disabled {
   margin-bottom: 16px;
 }
 
+.chart-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  margin-bottom: 16px;
+}
+
 .view-selector-card {
   display: grid;
   gap: 8px;
   margin-bottom: 16px;
 }
 
+.dashboard-controls {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
 .view-selector-card select {
-  max-width: 280px;
+  max-width: 100%;
 }
 
 .stat-card strong {
   font-size: 1.8rem;
+}
+
+.compact-title {
+  margin-bottom: 8px;
+}
+
+.compact-title h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.chart-card {
+  padding-bottom: 12px;
+}
+
+.chart-wrap {
+  height: 260px;
 }
 
 .section-title {
@@ -242,6 +272,14 @@ button:disabled {
   font-size: 0.9rem;
 }
 
+.asset-row-warning {
+  background: rgba(247, 178, 103, 0.1);
+}
+
+.asset-row-expired {
+  background: rgba(255, 107, 107, 0.1);
+}
+
 .table-actions {
   display: flex;
   gap: 8px;
@@ -260,6 +298,12 @@ button:disabled {
   margin-top: 12px;
 }
 
+.table-hint {
+  margin: 12px 0 0;
+  color: #94a9c1;
+  font-size: 0.9rem;
+}
+
 .error {
   margin-top: 12px;
   color: #ff8a8a;
@@ -274,13 +318,15 @@ button:disabled {
 .toast {
   position: fixed;
   right: 20px;
-  bottom: 20px;
+  top: 20px;
   padding: 12px 14px;
   border-radius: 12px;
   color: white;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
   cursor: pointer;
   z-index: 1100;
+  max-width: 420px;
+  white-space: pre-line;
 }
 
 .toast-success {
@@ -289,4 +335,15 @@ button:disabled {
 
 .toast-error {
   background: #b64545;
+}
+
+@media (max-width: 720px) {
+  .chart-wrap {
+    height: 220px;
+  }
+
+  .pagination-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }

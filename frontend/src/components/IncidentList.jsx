@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { formatDateTime } from '../utils/dateTime';
+import { generateIncidentNumber } from '../utils/idFactory';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || window.location.origin;
-const INITIAL_INCIDENT_FORM = { incidentNumber: '', siteId: 'site-bucharest', assetId: '', priority: 'Medium', category: 'Hardware', description: '', status: 'Open' };
-const PAGE_SIZE = 8;
+const RESPONSE_SLA_HOURS = 8;
+const RESOLUTION_SLA_HOURS = 24;
 const SITE_OPTIONS = [
   { value: 'site-bucharest', label: 'Bucharest Head Office' },
   { value: 'site-ploiesti', label: 'Ploiesti Warehouse' },
@@ -12,10 +14,43 @@ const SITE_OPTIONS = [
   { value: 'site-wroclaw', label: 'Wroclaw Operational Site' }
 ];
 
+function toDateTimeLocalInputValue(date) {
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60 * 1000);
+  return local.toISOString().slice(0, 16);
+}
+
+function buildInitialIncidentForm() {
+  const now = new Date();
+  const responseDeadline = new Date(now.getTime() + RESPONSE_SLA_HOURS * 60 * 60 * 1000);
+  const resolutionDeadline = new Date(now.getTime() + RESOLUTION_SLA_HOURS * 60 * 60 * 1000);
+
+  return {
+    incidentNumber: generateIncidentNumber(),
+    siteId: 'site-bucharest',
+    assetId: '',
+    priority: 'Medium',
+    category: 'Hardware',
+    description: '',
+    assignedTechnician: '',
+    status: 'Open',
+    createdAt: toDateTimeLocalInputValue(now),
+    responseDeadline: toDateTimeLocalInputValue(responseDeadline),
+    resolutionDeadline: toDateTimeLocalInputValue(resolutionDeadline),
+    resolutionNotes: ''
+  };
+}
+
+function formatSlaLabel(value) {
+  if (!value) return '-';
+  if (value === 'within') return 'Within SLA';
+  if (value === 'breach') return 'SLA Breach';
+  return value;
+}
+
 export default function IncidentList() {
-  const { loading, createIncident, updateIncidentDetails, updateIncidentStatus, token, fetchIncidentsView, showToast, refreshDashboard } = useApp();
+  const { loading, createIncident, updateIncidentDetails, updateIncidentStatus, token, fetchIncidentsView, showToast, refreshDashboard, resultsPerPage } = useApp();
   const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState(INITIAL_INCIDENT_FORM);
+  const [form, setForm] = useState(() => buildInitialIncidentForm());
   const [updatingIncidentId, setUpdatingIncidentId] = useState('');
   const [incidentStatusDraft, setIncidentStatusDraft] = useState('Open');
   const [selectedIncident, setSelectedIncident] = useState(null);
@@ -26,14 +61,14 @@ export default function IncidentList() {
   const [page, setPage] = useState(1);
   const [tableLoading, setTableLoading] = useState(false);
   const [tableIncidents, setTableIncidents] = useState([]);
-  const [pagination, setPagination] = useState({ page: 1, pageSize: PAGE_SIZE, total: 0, totalPages: 1 });
+  const [pagination, setPagination] = useState({ page: 1, pageSize: resultsPerPage, total: 0, totalPages: 1 });
 
   const loadIncidentsPage = useCallback(async () => {
     setTableLoading(true);
     try {
       const data = await fetchIncidentsView({
         page,
-        pageSize: PAGE_SIZE,
+        pageSize: resultsPerPage,
         search,
         status: statusFilter,
         priority: priorityFilter
@@ -57,30 +92,41 @@ export default function IncidentList() {
         });
 
         const total = filteredIncidents.length;
-        const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+        const totalPages = Math.max(1, Math.ceil(total / resultsPerPage));
         const safePage = Math.min(page, totalPages);
-        const start = (safePage - 1) * PAGE_SIZE;
-        setTableIncidents(filteredIncidents.slice(start, start + PAGE_SIZE));
-        setPagination({ page: safePage, pageSize: PAGE_SIZE, total, totalPages });
+        const start = (safePage - 1) * resultsPerPage;
+        setTableIncidents(filteredIncidents.slice(start, start + resultsPerPage));
+        setPagination({ page: safePage, pageSize: resultsPerPage, total, totalPages });
       }
     } catch (error) {
       showToast(error.message || 'Unable to load incidents', 'error');
     } finally {
       setTableLoading(false);
     }
-  }, [fetchIncidentsView, page, priorityFilter, search, showToast, statusFilter]);
+  }, [fetchIncidentsView, page, priorityFilter, resultsPerPage, search, showToast, statusFilter]);
 
   useEffect(() => {
     loadIncidentsPage();
   }, [loadIncidentsPage]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [resultsPerPage]);
 
   const currentPage = pagination.page || 1;
   const totalPages = pagination.totalPages || 1;
 
   async function handleSubmit(event) {
     event.preventDefault();
-    await createIncident(form);
-    setForm(INITIAL_INCIDENT_FORM);
+    const payload = {
+      ...form,
+      createdAt: new Date(form.createdAt).toISOString(),
+      responseDeadline: new Date(form.responseDeadline).toISOString(),
+      resolutionDeadline: new Date(form.resolutionDeadline).toISOString()
+    };
+
+    await createIncident(payload);
+    setForm(buildInitialIncidentForm());
     setModalOpen(false);
     await refreshDashboard();
     await loadIncidentsPage();
@@ -126,7 +172,16 @@ export default function IncidentList() {
     <article className="card">
       <div className="section-title">
         <h2>Incidents</h2>
-        <button type="button" className="secondary-button" onClick={() => setModalOpen(true)}>Create Incident</button>
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={() => {
+            setForm(buildInitialIncidentForm());
+            setModalOpen(true);
+          }}
+        >
+          Create Incident
+        </button>
       </div>
 
       {modalOpen ? (
@@ -137,7 +192,7 @@ export default function IncidentList() {
               <button type="button" className="secondary-button" onClick={() => setModalOpen(false)}>Close</button>
             </div>
             <form onSubmit={handleSubmit} className="stack-form">
-              <input placeholder="Incident number" value={form.incidentNumber} onChange={(event) => setForm({ ...form, incidentNumber: event.target.value })} required />
+              <input placeholder="Incident number" value={form.incidentNumber} readOnly required />
               <input placeholder="Asset ID" value={form.assetId} onChange={(event) => setForm({ ...form, assetId: event.target.value })} required />
               <select value={form.siteId} onChange={(event) => setForm({ ...form, siteId: event.target.value })}>
                 {SITE_OPTIONS.map((site) => (
@@ -145,6 +200,7 @@ export default function IncidentList() {
                 ))}
               </select>
               <input placeholder="Description" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} required />
+              <input placeholder="Assigned technician" value={form.assignedTechnician} onChange={(event) => setForm({ ...form, assignedTechnician: event.target.value })} />
               <select value={form.priority} onChange={(event) => setForm({ ...form, priority: event.target.value })}>
                 <option value="Low">Low</option>
                 <option value="Medium">Medium</option>
@@ -155,6 +211,29 @@ export default function IncidentList() {
                 <option value="In Progress">In Progress</option>
                 <option value="Resolved">Resolved</option>
               </select>
+              <label>
+                Creation date
+                <input type="datetime-local" value={form.createdAt} readOnly />
+              </label>
+              <label>
+                Response deadline
+                <input
+                  type="datetime-local"
+                  value={form.responseDeadline}
+                  onChange={(event) => setForm({ ...form, responseDeadline: event.target.value })}
+                  required
+                />
+              </label>
+              <label>
+                Resolution deadline
+                <input
+                  type="datetime-local"
+                  value={form.resolutionDeadline}
+                  onChange={(event) => setForm({ ...form, resolutionDeadline: event.target.value })}
+                  required
+                />
+              </label>
+              <input placeholder="Resolution notes" value={form.resolutionNotes} onChange={(event) => setForm({ ...form, resolutionNotes: event.target.value })} />
               <button type="submit">Create incident</button>
             </form>
           </div>
@@ -234,18 +313,21 @@ export default function IncidentList() {
               <th>Priority</th>
               <th>Status</th>
               <th>Assigned</th>
+              <th>Created</th>
+              <th>Response Deadline</th>
+              <th>Resolution Deadline</th>
               <th>SLA</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {tableLoading ? (
+            {tableLoading && tableIncidents.length === 0 ? (
               <tr>
-                <td colSpan={8} className="empty-cell">Loading incidents...</td>
+                <td colSpan={11} className="empty-cell">Loading incidents...</td>
               </tr>
             ) : tableIncidents.length === 0 ? (
               <tr>
-                <td colSpan={8} className="empty-cell">No incidents match your filter.</td>
+                <td colSpan={11} className="empty-cell">No incidents match your filter.</td>
               </tr>
             ) : tableIncidents.map((incident) => (
               <tr key={incident.id}>
@@ -266,7 +348,17 @@ export default function IncidentList() {
                   ) : incident.status}
                 </td>
                 <td>{incident.assignedTechnician || '-'}</td>
-                <td>{incident.slaStatus}</td>
+                <td>{formatDateTime(incident.createdAt)}</td>
+                <td>{formatDateTime(incident.responseDeadline)}</td>
+                <td>{formatDateTime(incident.resolutionDeadline)}</td>
+                <td>
+                  <strong>{formatSlaLabel(incident.slaStatus)}</strong>
+                  <p>
+                    Response: {formatSlaLabel(incident.responseSlaStatus)}
+                    {' • '}
+                    Resolution: {formatSlaLabel(incident.resolutionSlaStatus)}
+                  </p>
+                </td>
                 <td>
                   <div className="table-actions">
                     {updatingIncidentId === incident.id ? (

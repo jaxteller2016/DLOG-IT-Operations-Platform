@@ -1,32 +1,41 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { formatDateTime } from '../utils/dateTime';
 
-const PAGE_SIZE = 8;
+function sortAlertsNewestFirst(alerts) {
+  return [...alerts].sort((left, right) => {
+    const leftTime = left.createdAt ? Date.parse(left.createdAt) : 0;
+    const rightTime = right.createdAt ? Date.parse(right.createdAt) : 0;
+    return rightTime - leftTime;
+  });
+}
 
 export default function AlertFeed() {
-  const { fetchAlertsView, showToast } = useApp();
+  const { fetchAlertsView, showToast, resultsPerPage, alertsRefreshVersion } = useApp();
   const [search, setSearch] = useState('');
   const [stateFilter, setStateFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
   const [page, setPage] = useState(1);
   const [tableLoading, setTableLoading] = useState(false);
   const [tableAlerts, setTableAlerts] = useState([]);
-  const [pagination, setPagination] = useState({ page: 1, pageSize: PAGE_SIZE, total: 0, totalPages: 1 });
+  const [pagination, setPagination] = useState({ page: 1, pageSize: resultsPerPage, total: 0, totalPages: 1 });
 
   const loadAlertsPage = useCallback(async () => {
     setTableLoading(true);
     try {
       const data = await fetchAlertsView({
         page,
-        pageSize: PAGE_SIZE,
+        pageSize: resultsPerPage,
         search,
-        state: stateFilter
+        state: stateFilter,
+        type: typeFilter
       });
 
       if (data.pagination) {
-        setTableAlerts(data.alerts || []);
+        setTableAlerts(sortAlertsNewestFirst(data.alerts || []));
         setPagination(data.pagination);
       } else {
-        const allAlerts = data.alerts || [];
+        const allAlerts = sortAlertsNewestFirst(data.alerts || []);
         const query = search.trim().toLowerCase();
         const filteredAlerts = allAlerts.filter((alert) => {
           const matchesQuery = !query
@@ -35,26 +44,31 @@ export default function AlertFeed() {
             || alert.assetId.toLowerCase().includes(query);
           const isResolved = Boolean(alert.resolvedAt);
           const matchesState = stateFilter === 'all' || (stateFilter === 'active' && !isResolved) || (stateFilter === 'resolved' && isResolved);
-          return matchesQuery && matchesState;
+          const matchesType = typeFilter === 'all' || alert.type === typeFilter;
+          return matchesQuery && matchesState && matchesType;
         });
 
         const total = filteredAlerts.length;
-        const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+        const totalPages = Math.max(1, Math.ceil(total / resultsPerPage));
         const safePage = Math.min(page, totalPages);
-        const start = (safePage - 1) * PAGE_SIZE;
-        setTableAlerts(filteredAlerts.slice(start, start + PAGE_SIZE));
-        setPagination({ page: safePage, pageSize: PAGE_SIZE, total, totalPages });
+        const start = (safePage - 1) * resultsPerPage;
+        setTableAlerts(filteredAlerts.slice(start, start + resultsPerPage));
+        setPagination({ page: safePage, pageSize: resultsPerPage, total, totalPages });
       }
     } catch (error) {
       showToast(error.message || 'Unable to load alerts', 'error');
     } finally {
       setTableLoading(false);
     }
-  }, [fetchAlertsView, page, search, showToast, stateFilter]);
+  }, [alertsRefreshVersion, fetchAlertsView, page, resultsPerPage, search, showToast, stateFilter, typeFilter]);
 
   useEffect(() => {
     loadAlertsPage();
   }, [loadAlertsPage]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [resultsPerPage]);
 
   const currentPage = pagination.page || 1;
   const totalPages = pagination.totalPages || 1;
@@ -85,6 +99,17 @@ export default function AlertFeed() {
           <option value="active">Active only</option>
           <option value="resolved">Resolved only</option>
         </select>
+        <select
+          value={typeFilter}
+          onChange={(event) => {
+            setTypeFilter(event.target.value);
+            setPage(1);
+          }}
+        >
+          <option value="all">All alert types</option>
+          <option value="backup-failed">Failed backups</option>
+          <option value="low-disk-space">Low disk space</option>
+        </select>
       </div>
 
       <div className="table-wrap">
@@ -100,7 +125,7 @@ export default function AlertFeed() {
             </tr>
           </thead>
           <tbody>
-            {tableLoading ? (
+            {tableLoading && tableAlerts.length === 0 ? (
               <tr>
                 <td colSpan={6} className="empty-cell">Loading alerts...</td>
               </tr>
@@ -114,7 +139,7 @@ export default function AlertFeed() {
                 <td>{alert.assetId}</td>
                 <td>{alert.message}</td>
                 <td>{alert.severity || '-'}</td>
-                <td>{alert.createdAt || '-'}</td>
+                <td>{formatDateTime(alert.createdAt)}</td>
                 <td>{alert.resolvedAt ? 'Resolved' : 'Active'}</td>
               </tr>
             ))}

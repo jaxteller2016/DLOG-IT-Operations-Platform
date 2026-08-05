@@ -1,7 +1,31 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { formatDateTime } from '../utils/dateTime';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || window.location.origin;
 const TOKEN_STORAGE_KEY = 'dlog-token';
+const RESULTS_PER_PAGE_KEY = 'dlog-results-per-page';
+const RESULTS_PER_PAGE_OPTIONS = [10, 20, 30, 50];
+const ALERT_POLL_INTERVAL_MS = 3000;
+
+function buildAlertsSignature(alerts) {
+  return alerts
+    .map((alert) => [
+      alert?.id || '',
+      alert?.assetId || '',
+      alert?.type || '',
+      alert?.message || '',
+      alert?.severity || '',
+      alert?.createdAt || '',
+      alert?.resolvedAt || ''
+    ].join('|'))
+    .join('||');
+}
+
+function normalizeResultsPerPage(value) {
+  const parsed = Number.parseInt(value, 10);
+  if (RESULTS_PER_PAGE_OPTIONS.includes(parsed)) return parsed;
+  return 20;
+}
 
 function normalizeToken(value) {
   if (!value) return '';
@@ -22,14 +46,19 @@ const AppContext = createContext(null);
 
 export function AppProvider({ children }) {
   const [token, setToken] = useState(normalizeToken(localStorage.getItem(TOKEN_STORAGE_KEY) || ''));
+  const [resultsPerPage, setResultsPerPage] = useState(() => normalizeResultsPerPage(localStorage.getItem(RESULTS_PER_PAGE_KEY)));
   const [user, setUser] = useState(null);
   const [assets, setAssets] = useState([]);
   const [incidents, setIncidents] = useState([]);
   const [alerts, setAlerts] = useState([]);
+  const [alertsRefreshVersion, setAlertsRefreshVersion] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [toast, setToast] = useState(null);
   const authToken = normalizeToken(token);
+  const seenAlertIdsRef = useRef(new Set());
+  const alertsInitializedRef = useRef(false);
+  const alertsSignatureRef = useRef('');
 
   const showToast = useCallback((message, type = 'success') => {
     setToast({ message, type });
@@ -44,6 +73,10 @@ export function AppProvider({ children }) {
     const timer = setTimeout(() => setToast(null), 3200);
     return () => clearTimeout(timer);
   }, [toast]);
+
+  useEffect(() => {
+    localStorage.setItem(RESULTS_PER_PAGE_KEY, String(resultsPerPage));
+  }, [resultsPerPage]);
 
   async function requestJson(path, options = {}) {
     const normalizedPath = path.startsWith('/') ? path : `/${path}`;
@@ -73,6 +106,52 @@ export function AppProvider({ children }) {
     }
   }
 
+  const syncAlertsState = useCallback((nextAlerts, currentUser, options = {}) => {
+    const { notify = true } = options;
+    const nextSignature = buildAlertsSignature(nextAlerts);
+    const hasChanged = alertsSignatureRef.current !== nextSignature;
+
+    if (!alertsInitializedRef.current) {
+      alertsSignatureRef.current = nextSignature;
+      setAlerts(nextAlerts);
+      setAlertsRefreshVersion((value) => value + 1);
+
+      const seenAlertIds = seenAlertIdsRef.current;
+      nextAlerts.forEach((alert) => {
+        if (alert?.id) seenAlertIds.add(alert.id);
+      });
+      alertsInitializedRef.current = true;
+      return;
+    }
+
+    if (!hasChanged) {
+      return;
+    }
+
+    alertsSignatureRef.current = nextSignature;
+    setAlerts(nextAlerts);
+    setAlertsRefreshVersion((value) => value + 1);
+
+    const seenAlertIds = seenAlertIdsRef.current;
+    const newAlerts = nextAlerts.filter((alert) => alert?.id && !seenAlertIds.has(alert.id));
+    newAlerts.forEach((alert) => {
+      seenAlertIds.add(alert.id);
+    });
+
+    if (notify && currentUser?.role === 'Administrator' && newAlerts.length > 0) {
+      const latestAlert = [...newAlerts].sort((left, right) => {
+        const leftTime = left.createdAt ? Date.parse(left.createdAt) : 0;
+        const rightTime = right.createdAt ? Date.parse(right.createdAt) : 0;
+        return rightTime - leftTime;
+      })[0];
+
+      showToast(
+        `New alert received\nAsset ID: ${latestAlert.assetId || '-'}\nAlert Type: ${latestAlert.type || '-'}\nMessage: ${latestAlert.message || '-'}\nSeverity: ${latestAlert.severity || '-'}\nCreated at: ${formatDateTime(latestAlert.createdAt)}`,
+        'error'
+      );
+    }
+  }, [showToast]);
+
   const loadDashboardData = useCallback(async () => {
     if (!token) return;
 
@@ -89,8 +168,8 @@ export function AppProvider({ children }) {
 
       setAssets(assetsData.assets || []);
       setIncidents(incidentsData.incidents || []);
-      setAlerts(alertsData.alerts || []);
       setUser(meData.user);
+      syncAlertsState(alertsData.alerts || [], meData.user, { notify: true });
     } catch (err) {
       setError(err.message || 'Dashboard load failed');
       showToast(err.message || 'Dashboard load failed', 'error');
@@ -99,12 +178,29 @@ export function AppProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, [authToken, showToast, token]);
+  }, [authToken, showToast, syncAlertsState, token]);
 
   useEffect(() => {
     if (!token) return;
     loadDashboardData();
   }, [token, loadDashboardData]);
+
+  useEffect(() => {
+    if (!token || !user) return undefined;
+
+    const intervalId = window.setInterval(async () => {
+      try {
+        const alertsData = await requestJson('/alerts', {
+          headers: { Authorization: `Bearer ${authToken}` }
+        });
+        syncAlertsState(alertsData.alerts || [], user, { notify: true });
+      } catch {
+        // Background alert polling should not interrupt the active session.
+      }
+    }, ALERT_POLL_INTERVAL_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [authToken, token, user, syncAlertsState]);
 
   async function handleLogin(email, password) {
     setLoading(true);
@@ -137,7 +233,11 @@ export function AppProvider({ children }) {
     setAssets([]);
     setIncidents([]);
     setAlerts([]);
+    setAlertsRefreshVersion(0);
     setError('');
+    seenAlertIdsRef.current = new Set();
+    alertsInitializedRef.current = false;
+    alertsSignatureRef.current = '';
     showToast('Signed out');
   }
 
@@ -220,33 +320,33 @@ export function AppProvider({ children }) {
     return updateIncidentDetails(incidentId, { status, resolutionNotes: status === 'Resolved' ? 'Resolved from UI' : '' });
   }
 
-  async function fetchAssetsView(params = {}) {
+  const fetchAssetsView = useCallback(async (params = {}) => {
     const query = toQueryString({ paginate: true, ...params });
     return requestJson(`/assets${query}`, {
       headers: { Authorization: `Bearer ${authToken}` }
     });
-  }
+  }, [authToken]);
 
-  async function fetchIncidentsView(params = {}) {
+  const fetchIncidentsView = useCallback(async (params = {}) => {
     const query = toQueryString({ paginate: true, ...params });
     return requestJson(`/incidents${query}`, {
       headers: { Authorization: `Bearer ${authToken}` }
     });
-  }
+  }, [authToken]);
 
-  async function fetchAlertsView(params = {}) {
+  const fetchAlertsView = useCallback(async (params = {}) => {
     const query = toQueryString({ paginate: true, ...params });
     return requestJson(`/alerts${query}`, {
       headers: { Authorization: `Bearer ${authToken}` }
     });
-  }
+  }, [authToken]);
 
-  async function fetchAuditLogs(params = {}) {
+  const fetchAuditLogs = useCallback(async (params = {}) => {
     const query = toQueryString(params);
     return requestJson(`/audit${query}`, {
       headers: { Authorization: `Bearer ${authToken}` }
     });
-  }
+  }, [authToken]);
 
   const value = useMemo(() => ({
     token,
@@ -254,6 +354,8 @@ export function AppProvider({ children }) {
     assets,
     incidents,
     alerts,
+    alertsRefreshVersion,
+    resultsPerPage,
     loading,
     error,
     toast,
@@ -269,8 +371,9 @@ export function AppProvider({ children }) {
     fetchIncidentsView,
     fetchAlertsView,
     fetchAuditLogs,
+    setResultsPerPage,
     refreshDashboard: loadDashboardData
-  }), [token, user, assets, incidents, alerts, loading, error, toast, showToast, clearToast, handleLogin, handleLogout, createAsset, createIncident, updateIncidentDetails, updateIncidentStatus, fetchAssetsView, fetchIncidentsView, fetchAlertsView, fetchAuditLogs, loadDashboardData]);
+  }), [token, user, assets, incidents, alerts, alertsRefreshVersion, resultsPerPage, loading, error, toast, showToast, clearToast, handleLogin, handleLogout, createAsset, createIncident, updateIncidentDetails, updateIncidentStatus, fetchAssetsView, fetchIncidentsView, fetchAlertsView, fetchAuditLogs, loadDashboardData]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }

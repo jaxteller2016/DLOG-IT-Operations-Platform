@@ -5,6 +5,14 @@ const { app } = require('../src/server');
 let server;
 let baseUrl;
 
+function buildDeadlines() {
+  return {
+    responseDeadline: new Date(Date.now() + 5 * 60 * 60 * 1000).toISOString(),
+    resolutionDeadline: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    resolutionNotes: ''
+  };
+}
+
 function startServer() {
   return new Promise((resolve) => {
     server = app.listen(0, () => {
@@ -166,6 +174,8 @@ test('incident details can be retrieved and assigned technician updated', async 
       category: 'Software',
       description: 'Assignment workflow test',
       assignedTechnician: ''
+      ,
+      ...buildDeadlines()
     })
   });
   const createdBody = await created.json();
@@ -216,7 +226,8 @@ test('incident status updates are persisted', async () => {
       category: 'Software',
       description: 'Update workflow test',
       assignedTechnician: 'tech@example.com',
-      status: 'Open'
+      status: 'Open',
+      ...buildDeadlines()
     })
   });
   const createdBody = await created.json();
@@ -317,7 +328,8 @@ test('incidents endpoint supports pagination and filtering', async () => {
       priority: 'High',
       category: 'Hardware',
       description: 'Pagination test incident one',
-      status: 'Open'
+      status: 'Open',
+      ...buildDeadlines()
     })
   });
 
@@ -334,7 +346,8 @@ test('incidents endpoint supports pagination and filtering', async () => {
       priority: 'Low',
       category: 'Software',
       description: 'Pagination test incident two',
-      status: 'Resolved'
+      status: 'Resolved',
+      ...buildDeadlines()
     })
   });
 

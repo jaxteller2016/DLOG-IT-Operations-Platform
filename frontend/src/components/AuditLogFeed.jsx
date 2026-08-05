@@ -1,23 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
-
-const PAGE_SIZE = 20;
-
-function formatTimestamp(value) {
-  if (!value) return '-';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  }).format(date);
-}
+import { formatDateTime } from '../utils/dateTime';
 
 export default function AuditLogFeed() {
-  const { fetchAuditLogs, showToast } = useApp();
+  const { fetchAuditLogs, showToast, resultsPerPage } = useApp();
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
@@ -29,7 +15,7 @@ export default function AuditLogFeed() {
     setLoading(true);
     setLoadError('');
     try {
-      const data = await fetchAuditLogs({ limit: 300 });
+      const data = await fetchAuditLogs({ limit: 500 });
       setEntries(data.entries || []);
     } catch (error) {
       setLoadError(error.message || 'Unable to load audit logs');
@@ -53,9 +39,13 @@ export default function AuditLogFeed() {
     });
   }, [entries, entityFilter, search]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredEntries.length / PAGE_SIZE));
+  useEffect(() => {
+    setPage(1);
+  }, [resultsPerPage]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredEntries.length / resultsPerPage));
   const currentPage = Math.min(page, totalPages);
-  const paginatedEntries = filteredEntries.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const paginatedEntries = filteredEntries.slice((currentPage - 1) * resultsPerPage, currentPage * resultsPerPage);
 
   return (
     <section className="card">
@@ -102,7 +92,7 @@ export default function AuditLogFeed() {
             </tr>
           </thead>
           <tbody>
-            {loading ? (
+            {loading && paginatedEntries.length === 0 ? (
               <tr>
                 <td colSpan={6} className="empty-cell">Loading audit logs...</td>
               </tr>
@@ -112,7 +102,7 @@ export default function AuditLogFeed() {
               </tr>
             ) : paginatedEntries.map((entry) => (
               <tr key={entry.id}>
-                <td>{formatTimestamp(entry.createdAt)}</td>
+                <td>{formatDateTime(entry.createdAt)}</td>
                 <td>{entry.actor}</td>
                 <td>{entry.source}</td>
                 <td>{entry.entity}</td>

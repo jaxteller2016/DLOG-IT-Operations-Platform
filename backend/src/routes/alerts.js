@@ -36,16 +36,22 @@ router.get('/', authMiddleware, (req, res) => {
       || alert.assetId.toLowerCase().includes(search);
   });
 
+  const sortedAlerts = filteredAlerts.sort((left, right) => {
+    const leftTime = left.createdAt ? Date.parse(left.createdAt) : 0;
+    const rightTime = right.createdAt ? Date.parse(right.createdAt) : 0;
+    return rightTime - leftTime;
+  });
+
   const paging = parsePaging(req.query);
   if (!paging) {
-    return res.json({ alerts: filteredAlerts });
+    return res.json({ alerts: sortedAlerts });
   }
 
-  const total = filteredAlerts.length;
+  const total = sortedAlerts.length;
   const totalPages = Math.max(1, Math.ceil(total / paging.pageSize));
   const page = Math.min(paging.page, totalPages);
   const start = (page - 1) * paging.pageSize;
-  const alerts = filteredAlerts.slice(start, start + paging.pageSize);
+  const alerts = sortedAlerts.slice(start, start + paging.pageSize);
 
   return res.json({
     alerts,

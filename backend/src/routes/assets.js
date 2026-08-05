@@ -13,6 +13,20 @@ function parsePaging(query) {
   return { page, pageSize };
 }
 
+function buildAssetIdCandidate() {
+  const randomSuffix = Math.floor(Math.random() * 900 + 100);
+  return `AST-${Date.now()}-${randomSuffix}`;
+}
+
+function generateUniqueAssetId() {
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const candidate = buildAssetIdCandidate();
+    if (!findAssetByAssetId(candidate)) return candidate;
+  }
+
+  throw new Error('Unable to generate a unique asset ID');
+}
+
 router.get('/', authMiddleware, (req, res) => {
   const users = seedUsers();
   const currentUser = users.find((entry) => entry.id === req.user.id);
@@ -59,11 +73,13 @@ router.get('/', authMiddleware, (req, res) => {
 router.post('/', authMiddleware, requireRole('Administrator', 'IT Technician'), (req, res) => {
   const { assetId, serialNumber, category, manufacturer, model, siteId, assignedEmployee, ipAddress, macAddress, operatingSystem, purchaseDate, warrantyExpirationDate, status, notes } = req.body || {};
 
-  if (!assetId || !serialNumber || !category || !siteId) {
-    return res.status(400).json({ error: 'assetId, serialNumber, category, and siteId are required' });
+  const normalizedAssetId = typeof assetId === 'string' && assetId.trim() ? assetId.trim() : generateUniqueAssetId();
+
+  if (!serialNumber || !category || !siteId) {
+    return res.status(400).json({ error: 'serialNumber, category, and siteId are required' });
   }
 
-  const duplicateByAssetId = findAssetByAssetId(assetId);
+  const duplicateByAssetId = findAssetByAssetId(normalizedAssetId);
   const duplicateBySerial = loadAssets().find((asset) => asset.serialNumber === serialNumber);
   const duplicateAsset = duplicateByAssetId || duplicateBySerial;
   if (duplicateAsset) {
@@ -72,7 +88,7 @@ router.post('/', authMiddleware, requireRole('Administrator', 'IT Technician'), 
 
   const asset = {
     id: `asset-${Date.now()}`,
-    assetId,
+    assetId: normalizedAssetId,
     serialNumber,
     category,
     manufacturer: manufacturer || '',
