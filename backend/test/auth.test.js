@@ -68,6 +68,26 @@ test('auth/me returns the current user', async () => {
   assert.equal(body.user.email, 'tech@example.com');
 });
 
+test('logout revokes token access', async () => {
+  const login = await fetch(`${baseUrl}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'tech@example.com', password: 'Tech123!' })
+  });
+  const authBody = await login.json();
+
+  const logout = await fetch(`${baseUrl}/auth/logout`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${authBody.token}` }
+  });
+  assert.equal(logout.status, 200);
+
+  const meResponse = await fetch(`${baseUrl}/auth/me`, {
+    headers: { Authorization: `Bearer ${authBody.token}` }
+  });
+  assert.equal(meResponse.status, 401);
+});
+
 test('audit logs endpoint is admin-only and returns entries', async () => {
   const adminLogin = await fetch(`${baseUrl}/auth/login`, {
     method: 'POST',

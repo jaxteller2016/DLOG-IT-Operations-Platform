@@ -1,6 +1,6 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const { authMiddleware, requireRole, seedUsers, createToken } = require('../auth');
+const { authMiddleware, requireRole, seedUsers, createToken, revokeToken } = require('../auth');
 
 const router = express.Router();
 
@@ -33,6 +33,11 @@ router.get('/me', authMiddleware, (req, res) => {
   }
 
   return res.json({ user: { id: user.id, email: user.email, role: user.role, siteId: user.siteId } });
+});
+
+router.post('/logout', authMiddleware, (req, res) => {
+  revokeToken(req.user);
+  return res.json({ success: true });
 });
 
 router.get('/roles', authMiddleware, requireRole('Administrator'), (req, res) => {

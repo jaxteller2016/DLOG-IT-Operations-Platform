@@ -1,6 +1,7 @@
 const express = require('express');
 const { authMiddleware, requireRole, userCanAccessSite, seedUsers } = require('../auth');
 const { loadAssets, findAssetByAssetId, upsertAsset, logAuditEvent } = require('../dataStore');
+const { createAssetSchema, formatZodError } = require('../validation/schemas');
 
 const router = express.Router();
 
@@ -46,7 +47,7 @@ router.get('/', authMiddleware, (req, res) => {
       || asset.serialNumber.toLowerCase().includes(search)
       || asset.category.toLowerCase().includes(search)
       || asset.siteId.toLowerCase().includes(search);
-  });
+  }).reverse();
 
   const paging = parsePaging(req.query);
   if (!paging) {
@@ -71,13 +72,14 @@ router.get('/', authMiddleware, (req, res) => {
 });
 
 router.post('/', authMiddleware, requireRole('Administrator', 'IT Technician'), (req, res) => {
-  const { assetId, serialNumber, category, manufacturer, model, siteId, assignedEmployee, ipAddress, macAddress, operatingSystem, purchaseDate, warrantyExpirationDate, status, notes } = req.body || {};
+  const parsed = createAssetSchema.safeParse(req.body || {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: formatZodError(parsed.error) });
+  }
+
+  const { assetId, serialNumber, category, manufacturer, model, siteId, assignedEmployee, ipAddress, macAddress, operatingSystem, purchaseDate, warrantyExpirationDate, status, notes } = parsed.data;
 
   const normalizedAssetId = typeof assetId === 'string' && assetId.trim() ? assetId.trim() : generateUniqueAssetId();
-
-  if (!serialNumber || !category || !siteId) {
-    return res.status(400).json({ error: 'serialNumber, category, and siteId are required' });
-  }
 
   const duplicateByAssetId = findAssetByAssetId(normalizedAssetId);
   const duplicateBySerial = loadAssets().find((asset) => asset.serialNumber === serialNumber);

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { formatDateTime } from '../utils/dateTime';
 import { generateIncidentNumber } from '../utils/idFactory';
+import { firstValidationError, incidentCreateSchema } from '../validation/schemas';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || window.location.origin;
 const RESPONSE_SLA_HOURS = 8;
@@ -118,8 +119,14 @@ export default function IncidentList() {
 
   async function handleSubmit(event) {
     event.preventDefault();
+    const parsed = incidentCreateSchema.safeParse(form);
+    if (!parsed.success) {
+      showToast(firstValidationError(parsed.error), 'error');
+      return;
+    }
+
     const payload = {
-      ...form,
+      ...parsed.data,
       createdAt: new Date(form.createdAt).toISOString(),
       responseDeadline: new Date(form.responseDeadline).toISOString(),
       resolutionDeadline: new Date(form.resolutionDeadline).toISOString()

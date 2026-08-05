@@ -1,6 +1,7 @@
 const express = require('express');
 const { authMiddleware, requireRole, userCanAccessSite, seedUsers } = require('../auth');
 const { loadIncidents, findIncidentById, findIncidentByNumber, upsertIncident, logAuditEvent } = require('../dataStore');
+const { createIncidentSchema, formatZodError } = require('../validation/schemas');
 
 const router = express.Router();
 
@@ -128,12 +129,13 @@ router.get('/:id', authMiddleware, (req, res) => {
 });
 
 router.post('/', authMiddleware, requireRole('Administrator', 'IT Technician', 'Site Manager'), (req, res) => {
-  const { incidentNumber, siteId, assetId, priority, category, description, assignedTechnician, status, responseDeadline, resolutionDeadline, resolutionNotes } = req.body || {};
-  const normalizedIncidentNumber = typeof incidentNumber === 'string' && incidentNumber.trim() ? incidentNumber.trim() : generateUniqueIncidentNumber();
-
-  if (!siteId || !assetId || !priority || !category || !description) {
-    return res.status(400).json({ error: 'siteId, assetId, priority, category, and description are required' });
+  const parsed = createIncidentSchema.safeParse(req.body || {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: formatZodError(parsed.error) });
   }
+
+  const { incidentNumber, siteId, assetId, priority, category, description, assignedTechnician, status, responseDeadline, resolutionDeadline, resolutionNotes } = parsed.data;
+  const normalizedIncidentNumber = typeof incidentNumber === 'string' && incidentNumber.trim() ? incidentNumber.trim() : generateUniqueIncidentNumber();
 
   const duplicateIncident = findIncidentByNumber(normalizedIncidentNumber);
   if (duplicateIncident) {
@@ -143,18 +145,6 @@ router.post('/', authMiddleware, requireRole('Administrator', 'IT Technician', '
   const createdAt = new Date();
   const responseDue = parseIsoDate(responseDeadline);
   const resolutionDue = parseIsoDate(resolutionDeadline);
-
-  if (!responseDue || !resolutionDue) {
-    return res.status(400).json({ error: 'responseDeadline and resolutionDeadline must be valid ISO date strings' });
-  }
-
-  if (responseDue < createdAt || resolutionDue < createdAt) {
-    return res.status(400).json({ error: 'Deadlines must be in the future relative to creation date' });
-  }
-
-  if (resolutionDue < responseDue) {
-    return res.status(400).json({ error: 'resolutionDeadline must be after or equal to responseDeadline' });
-  }
 
   const normalizedStatus = status || 'Open';
   const firstResponseAt = normalizedStatus === 'In Progress' || normalizedStatus === 'Resolved' ? createdAt.toISOString() : null;

@@ -226,7 +226,18 @@ export function AppProvider({ children }) {
     }
   }
 
-  function handleLogout() {
+  async function handleLogout() {
+    if (authToken) {
+      try {
+        await requestJson('/auth/logout', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${authToken}` }
+        });
+      } catch {
+        // Local cleanup should still proceed even if logout request fails.
+      }
+    }
+
     localStorage.removeItem(TOKEN_STORAGE_KEY);
     setToken('');
     setUser(null);

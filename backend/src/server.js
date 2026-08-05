@@ -1,8 +1,10 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const dotenv = require('dotenv');
 const path = require('path');
 const { authMiddleware, requireRole, createToken, seedUsers, userCanAccessSite } = require('./auth');
+const { loginRateLimiter, heartbeatRateLimiter } = require('./security/rateLimits');
 const authRoutes = require('./routes/auth');
 const assetRoutes = require('./routes/assets');
 const incidentRoutes = require('./routes/incidents');
@@ -25,6 +27,8 @@ const allowedOrigins = [
   process.env.FRONTEND_URL
 ].filter(Boolean);
 
+app.disable('x-powered-by');
+app.use(helmet());
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin || allowedOrigins.includes(origin)) {
@@ -35,7 +39,10 @@ app.use(cors({
   },
   credentials: true
 }));
-app.use(express.json());
+app.use(express.json({ limit: '100kb' }));
+
+app.use('/auth/login', loginRateLimiter);
+app.use('/monitoring/heartbeat', heartbeatRateLimiter);
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 

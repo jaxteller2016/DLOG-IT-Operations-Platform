@@ -249,7 +249,32 @@ function loadMonitoringResults() {
   return rows.map((row) => JSON.parse(row.raw_json));
 }
 
+const SENSITIVE_FIELD_PATTERN = /password|passphrase|token|authorization|secret|api[-_]?key|cookie/i;
+
+function redactSensitiveFields(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => redactSensitiveFields(item));
+  }
+
+  if (value && typeof value === 'object') {
+    const result = {};
+    Object.entries(value).forEach(([key, nestedValue]) => {
+      if (SENSITIVE_FIELD_PATTERN.test(key)) {
+        result[key] = '[REDACTED]';
+      } else {
+        result[key] = redactSensitiveFields(nestedValue);
+      }
+    });
+    return result;
+  }
+
+  return value;
+}
+
 function logAuditEvent(event) {
+  const sanitizedPreviousValue = event.previousValue === undefined ? null : redactSensitiveFields(event.previousValue);
+  const sanitizedNewValue = event.newValue === undefined ? null : redactSensitiveFields(event.newValue);
+
   db.prepare(`
     INSERT INTO audit_logs (source, actor, entity, entity_id, action, previous_value, new_value, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -259,8 +284,8 @@ function logAuditEvent(event) {
     event.entity,
     event.entityId || null,
     event.action,
-    event.previousValue === undefined ? null : JSON.stringify(event.previousValue),
-    event.newValue === undefined ? null : JSON.stringify(event.newValue),
+    sanitizedPreviousValue === null ? null : JSON.stringify(sanitizedPreviousValue),
+    sanitizedNewValue === null ? null : JSON.stringify(sanitizedNewValue),
     event.createdAt || new Date().toISOString()
   );
 }

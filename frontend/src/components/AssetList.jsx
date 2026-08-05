@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { formatDate, formatDateTime } from '../utils/dateTime';
 import { generateAssetId } from '../utils/idFactory';
+import { assetCreateSchema, firstValidationError } from '../validation/schemas';
 
 const WARRANTY_WARNING_DAYS = 60;
 const SITE_OPTIONS = [
@@ -107,6 +108,12 @@ export default function AssetList() {
 
   async function handleSubmit(event) {
     event.preventDefault();
+    const parsed = assetCreateSchema.safeParse(form);
+    if (!parsed.success) {
+      showToast(firstValidationError(parsed.error), 'error');
+      return;
+    }
+
     await createAsset(form);
     setForm(buildInitialAssetForm());
     setModalOpen(false);
