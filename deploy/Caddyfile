@@ -1,18 +1,20 @@
 :80 {
     encode gzip zstd
 
-    @backend_health path /health
-    handle @backend_health {
-        reverse_proxy backend:5000
-    }
+    route {
+        @backend_health path /health
+        reverse_proxy @backend_health backend:5000
 
-    @api path /api/*
-    handle @api {
-        uri strip_prefix /api
-        reverse_proxy backend:5000
-    }
+        @api path /api/*
+        handle @api {
+            uri strip_prefix /api
+            reverse_proxy backend:5000
+        }
 
-    root * /srv
-    try_files {path} /index.html
-    file_server
+        handle {
+            root * /srv
+            try_files {path} /index.html
+            file_server
+        }
+    }
 }
