@@ -1,11 +1,14 @@
 :80 {
     encode gzip zstd
 
-    handle /health {
+    @backend_health path /health
+    handle @backend_health {
         reverse_proxy backend:5000
     }
 
-    handle_path /api/* {
+    @api path /api/*
+    handle @api {
+        uri strip_prefix /api
         reverse_proxy backend:5000
     }
 
