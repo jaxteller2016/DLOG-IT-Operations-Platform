@@ -3,6 +3,7 @@ WORKDIR /app
 
 COPY package.json package-lock.json ./
 COPY backend/package.json backend/package.json
+COPY frontend/package.json frontend/package.json
 RUN npm ci --omit=dev --workspace backend --include-workspace-root=false
 
 FROM node:20-bookworm-slim AS runtime
