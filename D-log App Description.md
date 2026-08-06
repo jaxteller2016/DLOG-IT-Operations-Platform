@@ -200,19 +200,24 @@ The monitoring process must:
 
 ### **3.5 Dashboard** 
 
-- Assets by site and category. 
+- Filter Assets by site
 
-- Online versus offline assets. 
+- Filter Assets by category. 
 
-- Open incidents by priority. 
+- Filter Assets by Online versus offline.
 
-- Incidents outside SLA. 
+- Show a Bar Chart which show Online versus Offline Assets.
 
-- Devices with warranties approaching expiration. 
+- Filter Open incidents by priority. 
 
-- Failed backups. 
+- Show a Pie Chart with Open Incidents by Priority
 
-- Open infrastructure or security alerts. 
+- Show a Bar Chart with Incidents categorised by SLA (How many are within SLA, How many are Breach, etc.). 
+
+- Mark Assets with warranties approaching expiration in different color rows. 
+
+- Filter Failed backups. 
+
 
 ### **3.6 Audit trail** 
 

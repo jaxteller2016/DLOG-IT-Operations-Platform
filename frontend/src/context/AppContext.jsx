@@ -252,7 +252,7 @@ export function AppProvider({ children }) {
     showToast('Signed out');
   }
 
-  async function createAsset(formValues) {
+  async function createAsset(formValues, options = {}) {
     setLoading(true);
     setError('');
 
@@ -270,7 +270,34 @@ export function AppProvider({ children }) {
       return data.asset;
     } catch (err) {
       setError(err.message || 'Unable to create asset');
-      showToast(err.message || 'Unable to create asset', 'error');
+      if (!options.suppressErrorToast) {
+        showToast(err.message || 'Unable to create asset', 'error');
+      }
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function deleteAssets(assetIds) {
+    setLoading(true);
+    setError('');
+
+    try {
+      const data = await requestJson('/assets', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ assetIds })
+      });
+      await loadDashboardData();
+      showToast(`${data.deletedCount || assetIds.length} asset(s) deleted successfully`);
+      return data;
+    } catch (err) {
+      setError(err.message || 'Unable to delete assets');
+      showToast(err.message || 'Unable to delete assets', 'error');
       throw err;
     } finally {
       setLoading(false);
@@ -296,6 +323,31 @@ export function AppProvider({ children }) {
     } catch (err) {
       setError(err.message || 'Unable to create incident');
       showToast(err.message || 'Unable to create incident', 'error');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function deleteIncidents(incidentIds) {
+    setLoading(true);
+    setError('');
+
+    try {
+      const data = await requestJson('/incidents', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ incidentIds })
+      });
+      await loadDashboardData();
+      showToast(`${data.deletedCount || incidentIds.length} incident(s) deleted successfully`);
+      return data;
+    } catch (err) {
+      setError(err.message || 'Unable to delete incidents');
+      showToast(err.message || 'Unable to delete incidents', 'error');
       throw err;
     } finally {
       setLoading(false);
@@ -359,6 +411,12 @@ export function AppProvider({ children }) {
     });
   }, [authToken]);
 
+  const fetchKnownAssets = useCallback(async () => {
+    return requestJson('/monitoring/known-assets', {
+      headers: { Authorization: `Bearer ${authToken}` }
+    });
+  }, [authToken]);
+
   const value = useMemo(() => ({
     token,
     user,
@@ -375,16 +433,19 @@ export function AppProvider({ children }) {
     handleLogin,
     handleLogout,
     createAsset,
+    deleteAssets,
     createIncident,
+    deleteIncidents,
     updateIncidentDetails,
     updateIncidentStatus,
     fetchAssetsView,
     fetchIncidentsView,
     fetchAlertsView,
     fetchAuditLogs,
+    fetchKnownAssets,
     setResultsPerPage,
     refreshDashboard: loadDashboardData
-  }), [token, user, assets, incidents, alerts, alertsRefreshVersion, resultsPerPage, loading, error, toast, showToast, clearToast, handleLogin, handleLogout, createAsset, createIncident, updateIncidentDetails, updateIncidentStatus, fetchAssetsView, fetchIncidentsView, fetchAlertsView, fetchAuditLogs, loadDashboardData]);
+  }), [token, user, assets, incidents, alerts, alertsRefreshVersion, resultsPerPage, loading, error, toast, showToast, clearToast, handleLogin, handleLogout, createAsset, deleteAssets, createIncident, deleteIncidents, updateIncidentDetails, updateIncidentStatus, fetchAssetsView, fetchIncidentsView, fetchAlertsView, fetchAuditLogs, fetchKnownAssets, loadDashboardData]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }

@@ -4,10 +4,20 @@ const PRIORITY_VALUES = ['Low', 'Medium', 'High'];
 const INCIDENT_STATUS_VALUES = ['Open', 'In Progress', 'Resolved'];
 const ASSET_STATUS_VALUES = ['Online', 'Offline', 'Maintenance', 'Unknown'];
 const ALPHANUMERIC_DASH_REGEX = /^[A-Za-z0-9-]+$/;
+const ALPHANUMERIC_REGEX = /^[A-Za-z0-9]+$/;
+const LETTERS_ONLY_REGEX = /^[A-Za-z]+$/;
+const IPV4_CHAR_REGEX = /^[0-9.]+$/;
+const MAC_ADDRESS_CHAR_REGEX = /^[A-Fa-f0-9:]+$/;
+const MODEL_CHAR_REGEX = /^[A-Za-z0-9 ]+$/;
+const OS_CHAR_REGEX = /^[A-Za-z0-9. ]+$/;
 
 const trimmedRequiredString = z.string().trim().min(1);
 const optionalTrimmedString = z.preprocess(
-  (value) => (typeof value === 'string' ? value.trim() : value),
+  (value) => {
+    if (typeof value !== 'string') return value;
+    const trimmedValue = value.trim();
+    return trimmedValue === '' ? undefined : trimmedValue;
+  },
   z.string().min(1).optional()
 );
 
@@ -21,18 +31,40 @@ const createAssetSchema = z.object({
     (value) => value === undefined || ALPHANUMERIC_DASH_REGEX.test(value),
     { message: 'assetId may contain only letters, numbers, and -' }
   ),
+  heartbeatSourceId: optionalTrimmedString.refine(
+    (value) => value === undefined || ALPHANUMERIC_DASH_REGEX.test(value),
+    { message: 'heartbeatSourceId may contain only letters, numbers, and -' }
+  ),
   serialNumber: trimmedRequiredString.regex(
-    ALPHANUMERIC_DASH_REGEX,
-    'serialNumber may contain only letters, numbers, and -'
+    ALPHANUMERIC_REGEX,
+    'serialNumber may contain only letters and numbers'
   ),
   category: trimmedRequiredString,
   siteId: trimmedRequiredString,
-  manufacturer: z.string().optional(),
-  model: z.string().optional(),
-  assignedEmployee: z.string().optional(),
-  ipAddress: z.string().optional(),
-  macAddress: z.string().optional(),
-  operatingSystem: z.string().optional(),
+  manufacturer: optionalTrimmedString.refine(
+    (value) => value === undefined || LETTERS_ONLY_REGEX.test(value),
+    { message: 'manufacturer may contain only letters' }
+  ),
+  model: optionalTrimmedString.refine(
+    (value) => value === undefined || MODEL_CHAR_REGEX.test(value),
+    { message: 'model may contain only letters, numbers, and spaces' }
+  ),
+  assignedEmployee: optionalTrimmedString.refine(
+    (value) => value === undefined || z.email().safeParse(value).success,
+    { message: 'assignedEmployee must be a valid email address' }
+  ),
+  ipAddress: optionalTrimmedString.refine(
+    (value) => value === undefined || IPV4_CHAR_REGEX.test(value),
+    { message: 'ipAddress may contain only numbers and .' }
+  ),
+  macAddress: optionalTrimmedString.refine(
+    (value) => value === undefined || MAC_ADDRESS_CHAR_REGEX.test(value),
+    { message: 'macAddress may contain only letters, numbers, and :' }
+  ),
+  operatingSystem: optionalTrimmedString.refine(
+    (value) => value === undefined || OS_CHAR_REGEX.test(value),
+    { message: 'operatingSystem may contain only letters, numbers, spaces, and .' }
+  ),
   purchaseDate: z.string().optional(),
   warrantyExpirationDate: z.string().optional(),
   status: z.enum(ASSET_STATUS_VALUES).optional(),

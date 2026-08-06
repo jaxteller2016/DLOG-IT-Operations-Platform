@@ -33,7 +33,7 @@ test.after(async () => {
 
 test('admin can create an asset and duplicate values are rejected', async () => {
   const uniqueAssetId = `PLT-LAP-${Date.now()}`;
-  const uniqueSerial = `SN-${Date.now()}`;
+  const uniqueSerial = `SN${Date.now()}`;
 
   const login = await fetch(`${baseUrl}/auth/login`, {
     method: 'POST',
@@ -53,12 +53,12 @@ test('admin can create an asset and duplicate values are rejected', async () => 
       serialNumber: uniqueSerial,
       category: 'Laptop',
       manufacturer: 'Dell',
-      model: 'Latitude 7420',
+      model: 'Latitude7420',
       siteId: 'site-bucharest',
-      assignedEmployee: 'Alex',
+      assignedEmployee: 'alex@example.com',
       ipAddress: '192.168.20.10',
       macAddress: '00:11:22:33:44:55',
-      operatingSystem: 'Windows 11',
+      operatingSystem: 'Windows11',
       purchaseDate: '2024-01-15',
       warrantyExpirationDate: '2027-01-15',
       status: 'Online',
@@ -78,15 +78,15 @@ test('admin can create an asset and duplicate values are rejected', async () => 
     },
     body: JSON.stringify({
       assetId: uniqueAssetId,
-      serialNumber: `${uniqueSerial}-dup`,
+      serialNumber: `${uniqueSerial}DUP`,
       category: 'Laptop',
       manufacturer: 'Dell',
-      model: 'Latitude 7420',
+      model: 'Latitude7420',
       siteId: 'site-bucharest',
-      assignedEmployee: 'Alex',
+      assignedEmployee: 'alex@example.com',
       ipAddress: '192.168.20.11',
       macAddress: '00:11:22:33:44:56',
-      operatingSystem: 'Windows 11',
+      operatingSystem: 'Windows11',
       purchaseDate: '2024-01-15',
       warrantyExpirationDate: '2027-01-15',
       status: 'Online',
@@ -95,6 +95,71 @@ test('admin can create an asset and duplicate values are rejected', async () => 
   });
 
   assert.equal(duplicateResponse.status, 409);
+});
+
+test('asset creation rejects invalid formatted fields', async () => {
+  const login = await fetch(`${baseUrl}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'admin@example.com', password: 'Admin123!' })
+  });
+  const { token } = await login.json();
+
+  const response = await fetch(`${baseUrl}/assets`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      assetId: 'BAD ID',
+      serialNumber: 'SN-123',
+      category: 'Laptop',
+      manufacturer: 'Dell1',
+      model: 'Model#1',
+      siteId: 'site-bucharest',
+      assignedEmployee: 'not-an-email',
+      ipAddress: '192.168.1.a',
+      macAddress: '00-11-22-33-44-55',
+      operatingSystem: 'Windows 11',
+      status: 'Online'
+    })
+  });
+
+  assert.equal(response.status, 400);
+  const body = await response.json();
+  assert.match(body.error, /assetId|serialNumber|manufacturer|model|assignedEmployee|ipAddress|macAddress|operatingSystem/);
+});
+
+test('asset can be linked to a heartbeat source id', async () => {
+  const uniqueSerial = `SNHB${Date.now()}`;
+  const heartbeatSourceId = `HB-${Date.now()}`;
+
+  const login = await fetch(`${baseUrl}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'admin@example.com', password: 'Admin123!' })
+  });
+  const { token } = await login.json();
+
+  const createResponse = await fetch(`${baseUrl}/assets`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      serialNumber: uniqueSerial,
+      heartbeatSourceId,
+      category: 'Laptop',
+      siteId: 'site-bucharest',
+      status: 'Online'
+    })
+  });
+
+  assert.equal(createResponse.status, 201);
+  const created = await createResponse.json();
+  assert.equal(created.asset.heartbeatSourceId, heartbeatSourceId);
 });
 
 test('site manager only sees assets from their own site', async () => {
@@ -112,6 +177,61 @@ test('site manager only sees assets from their own site', async () => {
   assert.equal(response.status, 200);
   const body = await response.json();
   assert.ok(body.assets.every((asset) => asset.siteId === 'site-ploiesti'));
+});
+
+test('admin can bulk delete selected assets', async () => {
+  const unique = Date.now();
+
+  const login = await fetch(`${baseUrl}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'admin@example.com', password: 'Admin123!' })
+  });
+  const { token } = await login.json();
+
+  const createAsset = async (suffix) => {
+    const response = await fetch(`${baseUrl}/assets`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        assetId: `DEL-ASSET-${unique}-${suffix}`,
+        serialNumber: `DELSN${unique}${suffix}`,
+        category: 'Laptop',
+        siteId: 'site-bucharest',
+        status: 'Online'
+      })
+    });
+
+    assert.equal(response.status, 201);
+    const body = await response.json();
+    return body.asset;
+  };
+
+  const assetOne = await createAsset('1');
+  const assetTwo = await createAsset('2');
+
+  const deleteResponse = await fetch(`${baseUrl}/assets`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({ assetIds: [assetOne.id, assetTwo.id] })
+  });
+
+  assert.equal(deleteResponse.status, 200);
+  const deleteBody = await deleteResponse.json();
+  assert.equal(deleteBody.deletedCount, 2);
+
+  const assetsResponse = await fetch(`${baseUrl}/assets`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  assert.equal(assetsResponse.status, 200);
+  const assetsBody = await assetsResponse.json();
+  assert.ok(!assetsBody.assets.some((asset) => asset.id === assetOne.id || asset.id === assetTwo.id));
 });
 
 test('incident creation calculates SLA and stores the status', async () => {
@@ -247,6 +367,65 @@ test('incident status updates are persisted', async () => {
   assert.equal(updatedBody.incident.resolutionNotes, 'Fixed in testing');
 });
 
+test('admin can bulk delete selected incidents', async () => {
+  const unique = Date.now();
+
+  const login = await fetch(`${baseUrl}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'admin@example.com', password: 'Admin123!' })
+  });
+  const { token } = await login.json();
+
+  const createIncident = async (suffix) => {
+    const response = await fetch(`${baseUrl}/incidents`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        incidentNumber: `DEL-INC-${unique}-${suffix}`,
+        siteId: 'site-bucharest',
+        assetId: 'PLT-LAP-001',
+        priority: 'Medium',
+        category: 'Hardware',
+        description: 'Bulk delete incident test',
+        assignedTechnician: 'admin@example.com',
+        status: 'Open',
+        ...buildDeadlines()
+      })
+    });
+
+    assert.equal(response.status, 201);
+    const body = await response.json();
+    return body.incident;
+  };
+
+  const incidentOne = await createIncident('1');
+  const incidentTwo = await createIncident('2');
+
+  const deleteResponse = await fetch(`${baseUrl}/incidents`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({ incidentIds: [incidentOne.id, incidentTwo.id] })
+  });
+
+  assert.equal(deleteResponse.status, 200);
+  const deleteBody = await deleteResponse.json();
+  assert.equal(deleteBody.deletedCount, 2);
+
+  const incidentsResponse = await fetch(`${baseUrl}/incidents`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  assert.equal(incidentsResponse.status, 200);
+  const incidentsBody = await incidentsResponse.json();
+  assert.ok(!incidentsBody.incidents.some((incident) => incident.id === incidentOne.id || incident.id === incidentTwo.id));
+});
+
 test('assets endpoint supports pagination and filtering', async () => {
   const unique = Date.now();
 
@@ -367,4 +546,11 @@ test('incidents endpoint supports pagination and filtering', async () => {
   assert.equal(filteredResponse.status, 200);
   const filteredBody = await filteredResponse.json();
   assert.ok(filteredBody.incidents.every((incident) => incident.status === 'Resolved' && incident.priority === 'Low'));
+
+  const orderResponse = await fetch(`${baseUrl}/incidents?search=PG-INC-${unique}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  assert.equal(orderResponse.status, 200);
+  const orderBody = await orderResponse.json();
+  assert.equal(orderBody.incidents[0].incidentNumber, `PG-INC-${unique}-2`);
 });

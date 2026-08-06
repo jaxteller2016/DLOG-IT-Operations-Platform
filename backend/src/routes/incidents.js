@@ -1,6 +1,6 @@
 const express = require('express');
 const { authMiddleware, requireRole, userCanAccessSite, seedUsers } = require('../auth');
-const { loadIncidents, findIncidentById, findIncidentByNumber, upsertIncident, logAuditEvent } = require('../dataStore');
+const { loadIncidents, findIncidentById, findIncidentByNumber, upsertIncident, saveIncidents, logAuditEvent } = require('../dataStore');
 const { createIncidentSchema, formatZodError } = require('../validation/schemas');
 
 const router = express.Router();
@@ -66,6 +66,14 @@ function enrichIncidentWithSla(incident) {
   };
 }
 
+function sortIncidentsNewestFirst(left, right) {
+  const leftTime = parseIsoDate(left.createdAt)?.getTime() || 0;
+  const rightTime = parseIsoDate(right.createdAt)?.getTime() || 0;
+  if (rightTime !== leftTime) return rightTime - leftTime;
+
+  return right.id.localeCompare(left.id);
+}
+
 router.get('/', authMiddleware, (req, res) => {
   const users = seedUsers();
   const currentUser = users.find((entry) => entry.id === req.user.id);
@@ -87,7 +95,9 @@ router.get('/', authMiddleware, (req, res) => {
       || incident.siteId.toLowerCase().includes(search);
   });
 
-  const incidentsWithSla = filteredIncidents.map((incident) => enrichIncidentWithSla(incident));
+  const incidentsWithSla = filteredIncidents
+    .map((incident) => enrichIncidentWithSla(incident))
+    .sort(sortIncidentsNewestFirst);
 
   const paging = parsePaging(req.query);
   if (!paging) {
@@ -248,6 +258,39 @@ router.patch('/:id', authMiddleware, requireRole('Administrator', 'IT Technician
   });
 
   return res.json({ incident: computedIncident });
+});
+
+router.delete('/', authMiddleware, requireRole('Administrator'), (req, res) => {
+  const { incidentIds } = req.body || {};
+
+  if (!Array.isArray(incidentIds) || incidentIds.length === 0 || incidentIds.some((incidentId) => typeof incidentId !== 'string' || incidentId.trim() === '')) {
+    return res.status(400).json({ error: 'incidentIds must be a non-empty array of incident identifiers' });
+  }
+
+  const requestedIds = new Set(incidentIds.map((incidentId) => incidentId.trim()));
+  const incidents = loadIncidents();
+  const deletedIncidents = incidents.filter((incident) => requestedIds.has(incident.id));
+
+  if (deletedIncidents.length === 0) {
+    return res.status(404).json({ error: 'No matching incidents found for deletion' });
+  }
+
+  const remainingIncidents = incidents.filter((incident) => !requestedIds.has(incident.id));
+  saveIncidents(remainingIncidents);
+
+  deletedIncidents.forEach((incident) => {
+    logAuditEvent({
+      source: 'user',
+      actor: req.user.email || req.user.id,
+      entity: 'incident',
+      entityId: incident.id,
+      action: 'delete',
+      previousValue: incident,
+      newValue: null
+    });
+  });
+
+  return res.json({ deletedCount: deletedIncidents.length, incidentIds: deletedIncidents.map((incident) => incident.id) });
 });
 
 module.exports = router;

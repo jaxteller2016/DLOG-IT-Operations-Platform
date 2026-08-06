@@ -1,30 +1,39 @@
 const express = require('express');
 const { authMiddleware, requireRole } = require('../auth');
-const { loadAssets, findAssetByAssetId, upsertAsset, findOpenAlertByType, upsertAlert, saveMonitoringResult, logAuditEvent } = require('../dataStore');
+const { loadAssets, findAssetByAssetId, upsertAsset, findOpenAlertByType, upsertAlert, saveMonitoringResult, loadMonitoringResults, logAuditEvent } = require('../dataStore');
 
 const router = express.Router();
 
+function findAssetForHeartbeat(assetId) {
+  return findAssetByAssetId(assetId)
+    || loadAssets().find((entry) => entry.assetId === assetId || entry.heartbeatSourceId === assetId);
+}
+
 router.post('/heartbeat', authMiddleware, requireRole('Administrator', 'IT Technician'), (req, res) => {
-  const { assetId, timestamp, ipAddress, cpuUsage, memoryUsage, diskFreePercent, backupStatus } = req.body || {};
+  const { assetId, timestamp, serialNumber, ipAddress, macAddress, operatingSystem, cpuUsage, memoryUsage, diskFreePercent, backupStatus } = req.body || {};
 
   if (!assetId || !timestamp) {
     return res.status(400).json({ error: 'assetId and timestamp are required' });
   }
 
-  const asset = findAssetByAssetId(assetId) || loadAssets().find((entry) => entry.assetId === assetId);
-  if (!asset) {
-    return res.status(404).json({ error: 'Asset not found' });
+  const asset = findAssetForHeartbeat(assetId);
+  if (asset) {
+    asset.lastOnlineTimestamp = timestamp;
+    asset.ipAddress = ipAddress || asset.ipAddress;
+    asset.macAddress = macAddress || asset.macAddress;
+    asset.operatingSystem = operatingSystem || asset.operatingSystem;
+    asset.serialNumber = serialNumber || asset.serialNumber;
+    asset.status = 'Online';
+    upsertAsset(asset);
   }
-
-  asset.lastOnlineTimestamp = timestamp;
-  asset.ipAddress = ipAddress || asset.ipAddress;
-  asset.status = 'Online';
-  upsertAsset(asset);
 
   saveMonitoringResult({
     assetId,
     timestamp,
+    serialNumber,
     ipAddress,
+    macAddress,
+    operatingSystem,
     cpuUsage,
     memoryUsage,
     diskFreePercent,
@@ -34,14 +43,17 @@ router.post('/heartbeat', authMiddleware, requireRole('Administrator', 'IT Techn
   logAuditEvent({
     source: 'system',
     actor: req.user.email || req.user.id || 'monitoring-endpoint',
-    entity: 'asset',
-    entityId: asset.id,
+    entity: asset ? 'asset' : 'monitoring-source',
+    entityId: asset ? asset.id : assetId,
     action: 'heartbeat-update',
     previousValue: null,
     newValue: {
       assetId,
       timestamp,
+      serialNumber,
       ipAddress,
+      macAddress,
+      operatingSystem,
       cpuUsage,
       memoryUsage,
       diskFreePercent,
@@ -51,17 +63,19 @@ router.post('/heartbeat', authMiddleware, requireRole('Administrator', 'IT Techn
 
   const newAlerts = [];
 
-  if (diskFreePercent !== undefined && diskFreePercent < 15) {
-    const existingAlert = findOpenAlertByType(assetId, 'low-disk-space');
+  const alertAssetId = asset ? asset.assetId : assetId;
+
+  if (asset && diskFreePercent !== undefined && diskFreePercent < 15) {
+    const existingAlert = findOpenAlertByType(alertAssetId, 'low-disk-space');
     if (!existingAlert) {
-      newAlerts.push({ id: `alert-${Date.now()}-disk`, assetId, type: 'low-disk-space', message: 'Low disk space detected', severity: 'high', createdAt: timestamp, resolvedAt: null });
+      newAlerts.push({ id: `alert-${Date.now()}-disk`, assetId: alertAssetId, type: 'low-disk-space', message: 'Low disk space detected', severity: 'high', createdAt: timestamp, resolvedAt: null });
     }
   }
 
-  if (backupStatus === 'failed') {
-    const existingAlert = findOpenAlertByType(assetId, 'backup-failed');
+  if (asset && backupStatus === 'failed') {
+    const existingAlert = findOpenAlertByType(alertAssetId, 'backup-failed');
     if (!existingAlert) {
-      newAlerts.push({ id: `alert-${Date.now()}-backup`, assetId, type: 'backup-failed', message: 'Backup failed', severity: 'high', createdAt: timestamp, resolvedAt: null });
+      newAlerts.push({ id: `alert-${Date.now()}-backup`, assetId: alertAssetId, type: 'backup-failed', message: 'Backup failed', severity: 'high', createdAt: timestamp, resolvedAt: null });
     }
   }
 
@@ -81,7 +95,31 @@ router.post('/heartbeat', authMiddleware, requireRole('Administrator', 'IT Techn
     });
   }
 
-  return res.status(201).json({ asset, alerts: newAlerts });
+  return res.status(201).json({ asset: asset || null, alerts: newAlerts });
+});
+
+router.get('/known-assets', authMiddleware, requireRole('Administrator', 'IT Technician', 'Site Manager'), (req, res) => {
+  const monitoringResults = loadMonitoringResults();
+  const registeredAssets = new Map(loadAssets().map((asset) => [asset.assetId, asset]));
+  const knownSources = new Map();
+
+  monitoringResults.forEach((result) => {
+    if (!result.assetId || knownSources.has(result.assetId)) return;
+
+    const registeredAsset = registeredAssets.get(result.assetId);
+    knownSources.set(result.assetId, {
+      assetId: result.assetId,
+      serialNumber: result.serialNumber || registeredAsset?.serialNumber || '',
+      ipAddress: result.ipAddress || registeredAsset?.ipAddress || '',
+      macAddress: result.macAddress || registeredAsset?.macAddress || '',
+      operatingSystem: result.operatingSystem || registeredAsset?.operatingSystem || '',
+      lastHeartbeatAt: result.timestamp || null,
+        isRegistered: Boolean(registeredAsset),
+        registeredAssetId: registeredAsset?.assetId || ''
+    });
+  });
+
+  return res.json({ knownAssets: Array.from(knownSources.values()) });
 });
 
 module.exports = router;

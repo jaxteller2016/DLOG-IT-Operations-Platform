@@ -50,27 +50,27 @@ export default function StatsGrid() {
 
   return (
     <>
-      <section className="stats-grid">
-        <article className="card stat-card">
-          <p>Assets tracked</p>
-          <strong>{assets.length}</strong>
+      <section className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <article className="rounded-2xl border border-slate-700/70 bg-slate-900/70 p-5 shadow-[0_16px_38px_rgba(2,6,23,0.35)]">
+          <p className="text-sm text-slate-300">Assets tracked</p>
+          <strong className="mt-2 block text-4xl font-semibold text-slate-50">{assets.length}</strong>
         </article>
-        <article className="card stat-card">
-          <p>Open incidents</p>
-          <strong>{openIncidents.length}</strong>
+        <article className="rounded-2xl border border-slate-700/70 bg-slate-900/70 p-5 shadow-[0_16px_38px_rgba(2,6,23,0.35)]">
+          <p className="text-sm text-slate-300">Open incidents</p>
+          <strong className="mt-2 block text-4xl font-semibold text-slate-50">{openIncidents.length}</strong>
         </article>
-        <article className="card stat-card">
-          <p>Active alerts</p>
-          <strong>{activeAlerts.length}</strong>
+        <article className="rounded-2xl border border-slate-700/70 bg-slate-900/70 p-5 shadow-[0_16px_38px_rgba(2,6,23,0.35)]">
+          <p className="text-sm text-slate-300">Active alerts</p>
+          <strong className="mt-2 block text-4xl font-semibold text-slate-50">{activeAlerts.length}</strong>
         </article>
       </section>
 
-      <section className="chart-grid">
-        <article className="card chart-card">
-          <div className="section-title compact-title">
-            <h2>Asset availability</h2>
+      <section className="mb-4 grid gap-4 xl:grid-cols-3">
+        <article className="rounded-2xl border border-slate-700/70 bg-slate-900/70 p-5 shadow-[0_16px_38px_rgba(2,6,23,0.35)]">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold text-slate-100">Asset availability</h2>
           </div>
-          <div className="chart-wrap">
+          <div className="h-[250px] sm:h-[260px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={assetAvailabilityData}>
                 <XAxis dataKey="name" stroke="#c4daff" />
@@ -80,6 +80,7 @@ export default function StatsGrid() {
                   contentStyle={{ background: '#0d1c2f', border: '1px solid #27415f', borderRadius: 12 }}
                   itemStyle={{ color: '#ffffff' }}
                   labelStyle={{ color: '#ffffff' }}
+                  cursor={{ fill: 'transparent' }}
                 />
                 <Bar dataKey="value" radius={[8, 8, 0, 0]}>
                   {assetAvailabilityData.map((entry, index) => (
@@ -91,11 +92,11 @@ export default function StatsGrid() {
           </div>
         </article>
 
-        <article className="card chart-card">
-          <div className="section-title compact-title">
-            <h2>Open incidents by priority</h2>
+        <article className="rounded-2xl border border-slate-700/70 bg-slate-900/70 p-5 shadow-[0_16px_38px_rgba(2,6,23,0.35)]">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold text-slate-100">Open incidents by priority</h2>
           </div>
-          <div className="chart-wrap">
+          <div className="h-[250px] sm:h-[260px]">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -110,18 +111,22 @@ export default function StatsGrid() {
                     <Cell key={entry.name} fill={INCIDENT_PRIORITY_COLORS[index % INCIDENT_PRIORITY_COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip contentStyle={{ background: '#0d1c2f', border: '1px solid #27415f', borderRadius: 12 }} />
+                <Tooltip
+                  contentStyle={{ background: '#0d1c2f', border: '1px solid #27415f', borderRadius: 12 }}
+                  itemStyle={{ color: '#ffffff' }}
+                  labelStyle={{ color: '#ffffff' }}
+                />
                 <Legend />
               </PieChart>
             </ResponsiveContainer>
           </div>
         </article>
 
-        <article className="card chart-card">
-          <div className="section-title compact-title">
-            <h2>Incidents by SLA</h2>
+        <article className="rounded-2xl border border-slate-700/70 bg-slate-900/70 p-5 shadow-[0_16px_38px_rgba(2,6,23,0.35)]">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold text-slate-100">Incidents by SLA</h2>
           </div>
-          <div className="chart-wrap">
+          <div className="h-[250px] sm:h-[260px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={slaData}>
                 <XAxis dataKey="name" stroke="#c4daff" />
@@ -130,8 +135,9 @@ export default function StatsGrid() {
                   contentStyle={{ background: '#0d1c2f', border: '1px solid #27415f', borderRadius: 12 }}
                   itemStyle={{ color: '#ffffff' }}
                   labelStyle={{ color: '#ffffff' }}
+                  cursor={false}
                 />
-                <Bar dataKey="value" radius={[8, 8, 0, 0]}>
+                <Bar dataKey="value" radius={[8, 8, 0, 0]} activeBar={false}>
                   {slaData.map((entry, index) => (
                     <Cell key={entry.name} fill={SLA_COLORS[index % SLA_COLORS.length]} />
                   ))}
