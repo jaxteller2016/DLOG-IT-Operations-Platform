@@ -9,6 +9,7 @@ backend/dist/
 
 # Environment files
 .env
+.env.production
 .env.local
 .env.*.local
 
@@ -38,3 +39,5 @@ supabase/.temp/
 backend/data/dlog.sqlite
 backend/data/dlog.sqlite-shm
 backend/data/dlog.sqlite-wal
+
+D-log_App_Description.md

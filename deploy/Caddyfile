@@ -1,0 +1,15 @@
+:80 {
+    encode gzip zstd
+
+    handle /health {
+        reverse_proxy backend:5000
+    }
+
+    handle_path /api/* {
+        reverse_proxy backend:5000
+    }
+
+    root * /srv
+    try_files {path} /index.html
+    file_server
+}

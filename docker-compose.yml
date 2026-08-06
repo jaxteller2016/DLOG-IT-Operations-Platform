@@ -1,0 +1,46 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: dlog-backend
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 5000
+    volumes:
+      - dlog_backend_data:/app/backend/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5000/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - dlog-net
+
+  caddy:
+    build:
+      context: .
+      dockerfile: deploy/Caddy.Dockerfile
+      args:
+        VITE_API_URL: /api
+    container_name: dlog-caddy
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    restart: unless-stopped
+    networks:
+      - dlog-net
+
+volumes:
+  dlog_backend_data:
+
+networks:
+  dlog-net:
+    driver: bridge
