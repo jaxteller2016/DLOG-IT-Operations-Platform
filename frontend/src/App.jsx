@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Route, Routes } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
 import LoginScreen from './components/LoginScreen';
 import TopBar from './components/TopBar';
@@ -7,6 +8,7 @@ import AssetList from './components/AssetList';
 import IncidentList from './components/IncidentList';
 import AlertFeed from './components/AlertFeed';
 import AuditLogFeed from './components/AuditLogFeed';
+import ApiDocsPage from './components/ApiDocsPage';
 
 const DASHBOARD_VIEW_KEY = 'dlog-dashboard-view';
 
@@ -114,7 +116,11 @@ function AppContent() {
 function App() {
   return (
     <AppProvider>
-      <AppContent />
+      <Routes>
+        <Route path="/api/docs" element={<ApiDocsPage />} />
+        <Route path="/docs" element={<ApiDocsPage />} />
+        <Route path="*" element={<AppContent />} />
+      </Routes>
     </AppProvider>
   );
 }

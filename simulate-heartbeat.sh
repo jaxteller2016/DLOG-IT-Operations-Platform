@@ -3,6 +3,7 @@
 set -euo pipefail
 
 BASE_URL="http://192.168.100.5:5000"
+API_BASE_URL=""
 EMAIL="admin@example.com"
 PASSWORD="Admin123!"
 ASSET_ID=""
@@ -21,7 +22,7 @@ usage() {
 Usage: ./simulate-heartbeat.sh [options]
 
 Options:
-  --base-url URL            API base URL (default: http://192.168.100.5:5000)
+  --base-url URL            App or API base URL (default: http://192.168.100.5:5000)
   --email EMAIL             Login email (default: admin@example.com)
   --password PASSWORD       Login password (default: Admin123!)
   --asset-id ID             Asset ID to simulate heartbeat for (optional, auto-derived when omitted)
@@ -50,6 +51,10 @@ json_read() {
   python3 -c "import json,sys; data=json.load(sys.stdin); value=${expression}; print('' if value is None else value)"
 }
 
+is_json() {
+  python3 -c "import json,sys; json.load(sys.stdin)" >/dev/null 2>&1
+}
+
 request_json() {
   local method="$1"
   local url="$2"
@@ -65,6 +70,55 @@ request_json() {
   fi
 
   curl "${curl_args[@]}"
+}
+
+try_login() {
+  local api_base_url="$1"
+  local payload="$2"
+  local response
+  response=$(request_json "POST" "$api_base_url/auth/login" "$payload")
+
+  if ! printf '%s' "$response" | is_json; then
+    echo ""
+    return 0
+  fi
+
+  local token
+  token=$(printf '%s' "$response" | json_read "data.get('token', '')")
+  if [[ -n "$token" ]]; then
+    printf '%s\n%s' "$api_base_url" "$response"
+    return 0
+  fi
+
+  echo ""
+}
+
+resolve_api_base_url() {
+  local normalized_base_url="$1"
+  local payload="$2"
+  local login_result
+
+  if [[ "$normalized_base_url" == */api ]]; then
+    login_result=$(try_login "$normalized_base_url" "$payload")
+    if [[ -n "$login_result" ]]; then
+      printf '%s' "$login_result"
+      return 0
+    fi
+  else
+    login_result=$(try_login "$normalized_base_url" "$payload")
+    if [[ -n "$login_result" ]]; then
+      printf '%s' "$login_result"
+      return 0
+    fi
+
+    login_result=$(try_login "$normalized_base_url/api" "$payload")
+    if [[ -n "$login_result" ]]; then
+      printf '%s' "$login_result"
+      return 0
+    fi
+  fi
+
+  return 1
 }
 
 detect_serial_number() {
@@ -140,7 +194,13 @@ EOF
 )
 
   local response
-  response=$(request_json "POST" "$BASE_URL/monitoring/heartbeat" "$payload" "Authorization: Bearer $token")
+  response=$(request_json "POST" "$API_BASE_URL/monitoring/heartbeat" "$payload" "Authorization: Bearer $token")
+
+  if ! printf '%s' "$response" | is_json; then
+    echo "Heartbeat request failed. Response:" >&2
+    echo "$response" >&2
+    exit 1
+  fi
 
   local alert_count
   alert_count=$(printf '%s' "$response" | json_read "len(data.get('alerts', []))")
@@ -237,7 +297,13 @@ login_payload=$(cat <<EOF
 EOF
 )
 
-login_response=$(request_json "POST" "$BASE_URL/auth/login" "$login_payload")
+login_result=$(resolve_api_base_url "$BASE_URL" "$login_payload") || {
+  echo "Login failed. The server did not return a valid JSON auth response from either $BASE_URL/auth/login or $BASE_URL/api/auth/login" >&2
+  exit 1
+}
+
+API_BASE_URL=$(printf '%s' "$login_result" | head -n 1)
+login_response=$(printf '%s' "$login_result" | tail -n +2)
 token=$(printf '%s' "$login_response" | json_read "data.get('token', '')")
 
 if [[ -z "$token" ]]; then
@@ -246,7 +312,7 @@ if [[ -z "$token" ]]; then
   exit 1
 fi
 
-echo "Authenticated to $BASE_URL as $EMAIL"
+echo "Authenticated to $API_BASE_URL as $EMAIL"
 echo "Sending heartbeats for asset $ASSET_ID"
 echo "Serial: $SERIAL_NUMBER | IP: $IP_ADDRESS | MAC: $MAC_ADDRESS | OS: $OPERATING_SYSTEM"
 

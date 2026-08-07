@@ -5,6 +5,13 @@
         @backend_health path /health
         reverse_proxy @backend_health backend:5000
 
+        @api_docs path /api/docs /api/docs/*
+        handle @api_docs {
+            root * /srv
+            try_files {path} /index.html
+            file_server
+        }
+
         @api path /api/*
         handle @api {
             uri strip_prefix /api

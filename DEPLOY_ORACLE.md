@@ -9,9 +9,17 @@ Target public IP in this setup: `92.5.68.152`
 
 ## 1. Oracle Cloud networking checklist
 
-In Oracle Cloud (Security List or NSG), allow inbound:
+In Oracle Cloud (Security List or NSG), add **Ingress rules**:
 - TCP `22` (SSH)
 - TCP `80` (HTTP)
+
+Use these values in the rule form:
+- Source type: `CIDR`
+- Source CIDR: `0.0.0.0/0` for port `80`
+- Source CIDR: your public IP `/32` for port `22` if you want to restrict SSH
+- Destination port range: `22` and `80`
+
+If you attached an NSG to the VM, make sure the rule is added to that NSG. If you are using a Security List instead, make sure the subnet is using that list.
 
 On the VM firewall (if enabled), allow:
 - `22`
@@ -103,6 +111,8 @@ From your local machine/browser:
 - Backend health: `http://92.5.68.152/health`
 
 Because the frontend is built with `VITE_API_URL=/api`, API calls are proxied by Caddy to backend and do not conflict with static `/assets/*` files.
+
+If the browser times out on `http://92.5.68.152` while `docker compose ps` shows healthy containers, the problem is almost always Oracle ingress, not Docker. Recheck the NSG or Security List rules and ensure port `80` is open to `0.0.0.0/0`.
 
 ## 7. Update flow after new push
 

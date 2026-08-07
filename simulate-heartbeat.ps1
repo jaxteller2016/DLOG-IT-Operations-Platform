@@ -16,6 +16,36 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Resolve-ApiBaseUrl {
+  param(
+    [string]$Base
+  )
+
+  $normalizedBase = $Base.TrimEnd('/')
+  $candidates = @()
+
+  if ($normalizedBase.EndsWith('/api')) {
+    $candidates += $normalizedBase
+  } else {
+    $candidates += $normalizedBase
+    $candidates += "$normalizedBase/api"
+  }
+
+  foreach ($candidate in $candidates) {
+    try {
+      $probeBody = @{ email = $Email; password = $Password } | ConvertTo-Json
+      $response = Invoke-RestMethod -Method Post -Uri "$candidate/auth/login" -ContentType "application/json" -Body $probeBody
+      if ($response.token) {
+        return @{ ApiBaseUrl = $candidate; LoginResponse = $response }
+      }
+    } catch {
+      continue
+    }
+  }
+
+  throw "Login failed. The server did not return a valid auth response from either $normalizedBase/auth/login or $normalizedBase/api/auth/login"
+}
+
 function Get-DefaultSerialNumber {
   try {
     $bios = Get-CimInstance -ClassName Win32_BIOS
@@ -79,8 +109,9 @@ if (-not $MacAddress) { $MacAddress = Get-DefaultMacAddress }
 if (-not $OperatingSystem) { $OperatingSystem = Get-DefaultOperatingSystem }
 if (-not $AssetId) { $AssetId = Get-AutoAssetId -Serial $SerialNumber -Mac $MacAddress }
 
-$loginBody = @{ email = $Email; password = $Password } | ConvertTo-Json
-$loginResponse = Invoke-RestMethod -Method Post -Uri "$($BaseUrl.TrimEnd('/'))/auth/login" -ContentType "application/json" -Body $loginBody
+$apiResolution = Resolve-ApiBaseUrl -Base $BaseUrl
+$ApiBaseUrl = $apiResolution.ApiBaseUrl
+$loginResponse = $apiResolution.LoginResponse
 $token = $loginResponse.token
 
 if (-not $token) {
@@ -89,7 +120,7 @@ if (-not $token) {
 
 $headers = @{ Authorization = "Bearer $token" }
 
-Write-Host "Authenticated to $BaseUrl as $Email"
+Write-Host "Authenticated to $ApiBaseUrl as $Email"
 Write-Host "Sending heartbeats for asset $AssetId"
 Write-Host "Serial: $SerialNumber | IP: $IpAddress | MAC: $MacAddress | OS: $OperatingSystem"
 
@@ -109,7 +140,7 @@ function Send-Heartbeat {
     backupStatus = $BackupStatus
   } | ConvertTo-Json
 
-  $response = Invoke-RestMethod -Method Post -Uri "$($BaseUrl.TrimEnd('/'))/monitoring/heartbeat" -Headers $headers -ContentType "application/json" -Body $payload
+  $response = Invoke-RestMethod -Method Post -Uri "$ApiBaseUrl/monitoring/heartbeat" -Headers $headers -ContentType "application/json" -Body $payload
   $alertCount = if ($response.alerts) { $response.alerts.Count } else { 0 }
 
   Write-Host "[$timestamp] Heartbeat sent for asset $AssetId. Alerts returned: $alertCount"
