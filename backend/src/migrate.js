@@ -2,87 +2,62 @@ const fs = require('fs');
 const path = require('path');
 
 const DATA_DIR = path.resolve(__dirname, '../data');
+const MIGRATIONS_DIR = path.resolve(__dirname, '../migrations');
 
 function ensureDataDirectory() {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
+function listMigrationFiles() {
+  if (!fs.existsSync(MIGRATIONS_DIR)) return [];
+
+  return fs
+    .readdirSync(MIGRATIONS_DIR)
+    .filter((fileName) => fileName.endsWith('.sql'))
+    .sort();
+}
+
 function runMigrations(db) {
   db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      email TEXT NOT NULL UNIQUE,
-      password TEXT NOT NULL,
-      role TEXT NOT NULL,
-      site_id TEXT,
-      json_data TEXT NOT NULL
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      version TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      applied_at TEXT NOT NULL
     );
-
-    CREATE TABLE IF NOT EXISTS assets (
-      id TEXT PRIMARY KEY,
-      asset_id TEXT NOT NULL UNIQUE,
-      serial_number TEXT NOT NULL UNIQUE,
-      site_id TEXT NOT NULL,
-      status TEXT,
-      json_data TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS incidents (
-      id TEXT PRIMARY KEY,
-      incident_number TEXT NOT NULL UNIQUE,
-      site_id TEXT NOT NULL,
-      asset_id TEXT NOT NULL,
-      status TEXT NOT NULL,
-      priority TEXT NOT NULL,
-      json_data TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS alerts (
-      id TEXT PRIMARY KEY,
-      asset_id TEXT NOT NULL,
-      type TEXT NOT NULL,
-      resolved_at TEXT,
-      created_at TEXT,
-      json_data TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS monitoring_results (
-      id TEXT PRIMARY KEY,
-      asset_id TEXT NOT NULL,
-      timestamp TEXT NOT NULL,
-      ip_address TEXT,
-      cpu_usage REAL,
-      memory_usage REAL,
-      disk_free_percent REAL,
-      backup_status TEXT,
-      raw_json TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS audit_logs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      source TEXT NOT NULL,
-      actor TEXT NOT NULL,
-      entity TEXT NOT NULL,
-      entity_id TEXT,
-      action TEXT NOT NULL,
-      previous_value TEXT,
-      new_value TEXT,
-      created_at TEXT NOT NULL
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_assets_site_id ON assets(site_id);
-    CREATE INDEX IF NOT EXISTS idx_incidents_site_id ON incidents(site_id);
-    CREATE INDEX IF NOT EXISTS idx_incidents_status ON incidents(status);
-    CREATE INDEX IF NOT EXISTS idx_alerts_asset_id ON alerts(asset_id);
-    CREATE INDEX IF NOT EXISTS idx_alerts_type_resolved ON alerts(type, resolved_at);
-    CREATE INDEX IF NOT EXISTS idx_monitoring_asset_ts ON monitoring_results(asset_id, timestamp);
-    CREATE INDEX IF NOT EXISTS idx_audit_entity_ts ON audit_logs(entity, created_at);
   `);
+
+  const insertMigration = db.prepare(`
+    INSERT INTO schema_migrations (version, name, applied_at)
+    VALUES (?, ?, ?)
+  `);
+  const migrationApplied = db.prepare('SELECT 1 FROM schema_migrations WHERE version = ? LIMIT 1');
+
+  const files = listMigrationFiles();
+  const applied = [];
+
+  files.forEach((fileName) => {
+    const version = fileName.split('_')[0];
+    const alreadyApplied = migrationApplied.get(version);
+    if (alreadyApplied) return;
+
+    const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, fileName), 'utf8');
+    const tx = db.transaction(() => {
+      db.exec(sql);
+      insertMigration.run(version, fileName, new Date().toISOString());
+    });
+
+    tx();
+    applied.push(fileName);
+  });
+
+  return applied;
 }
 
 module.exports = {
   DATA_DIR,
+  MIGRATIONS_DIR,
   ensureDataDirectory,
+  listMigrationFiles,
   runMigrations
 };
 
@@ -92,7 +67,12 @@ if (require.main === module) {
 
   ensureDataDirectory();
   const db = new Database(DB_FILE);
-  runMigrations(db);
+  const applied = runMigrations(db);
   db.close();
-  console.log(`Migrations applied: ${DB_FILE}`);
+  if (applied.length === 0) {
+    console.log(`No new migrations. Database is up to date: ${DB_FILE}`);
+  } else {
+    console.log(`Applied migrations to ${DB_FILE}:`);
+    applied.forEach((migration) => console.log(`- ${migration}`));
+  }
 }
